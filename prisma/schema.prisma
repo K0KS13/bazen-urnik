@@ -1,0 +1,78 @@
+// Bazen Bar & BBQ — urnik in evidenca delovnega časa
+// Shema je namenoma brez enumov in brez podatkovnih tipov, specifičnih za SQLite,
+// da je prehod na PostgreSQL (Supabase / Neon) ob objavi samo menjava `provider`.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// Zaposleni. Prijava poteka s 4-mestnim PIN-om, ki je shranjen zgoščen (bcrypt).
+model Employee {
+  id         String   @id @default(cuid())
+  firstName  String
+  lastName   String
+  /// "employee" | "manager" | "admin" — glej src/lib/roles.ts
+  role       String   @default("employee")
+  pinHash    String
+  /// Neobvezna bruto urna postavka, uporabljena samo v izvozu.
+  hourlyRate Float?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  shifts        Shift[]     @relation("ShiftEmployee")
+  createdShifts Shift[]     @relation("ShiftCreatedBy")
+  timeEntries   TimeEntry[] @relation("EntryEmployee")
+  editedEntries TimeEntry[] @relation("EntryEditedBy")
+
+  @@index([active, lastName])
+}
+
+/// Načrtovana izmena v urniku.
+model Shift {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation("ShiftEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  start      DateTime
+  end        DateTime
+  /// Delovno mesto: šank, kuhinja, strežba, bazen ...
+  position   String?
+  note       String?
+
+  createdById String?
+  createdBy   Employee? @relation("ShiftCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, start])
+  @@index([start])
+}
+
+/// Dejansko opravljen čas (prijava/odjava na uro).
+model TimeEntry {
+  id           String    @id @default(cuid())
+  employeeId   String
+  employee     Employee  @relation("EntryEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  clockIn      DateTime
+  /// null = izmena še traja
+  clockOut     DateTime?
+  breakMinutes Int       @default(0)
+  note         String?
+
+  /// Sledljivost ročnih popravkov — kdo in kdaj je vnos spremenil.
+  editedById String?
+  editedBy   Employee? @relation("EntryEditedBy", fields: [editedById], references: [id], onDelete: SetNull)
+  editedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, clockIn])
+  @@index([clockIn])
+}

@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/* Enotna temna paleta — aplikacija se uporablja na tablici za šankom in na
+   telefonih, pogosto zvečer; temna podlaga je berljiva in ne slepi. */
+:root {
+  --background: #0b1220;
+  --surface: #131c2e;
+  --surface-2: #1b263c;
+  --border: #2a3752;
+  --foreground: #e8edf7;
+  --muted: #97a3bd;
+  --accent: #2dd4bf;
+  --accent-strong: #14b8a6;
+  --danger: #f87171;
+  --warning: #fbbf24;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Skupni gradniki, da se slog ne ponavlja po vseh straneh. */
+@layer components {
+  .card {
+    @apply rounded-2xl border border-border bg-surface p-4;
+  }
+
+  /* Tailwind v4 ne dovoli `@apply` na lastnem razredu, zato je skupna osnova
+     našteta v enem pravilu, različice pa dodajo samo barve. */
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3
+           text-base font-semibold transition-colors disabled:opacity-50
+           disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-slate-900 hover:bg-accent-strong;
+  }
+
+  .btn-secondary {
+    @apply border border-border bg-surface-2 text-foreground hover:bg-border;
+  }
+
+  .btn-danger {
+    @apply border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-border bg-surface-2 px-3 py-2.5
+           text-foreground placeholder:text-muted
+           focus:border-accent focus:outline-none;
+  }
+
+  .label {
+    @apply mb-1 block text-sm font-medium text-muted;
+  }
+}
