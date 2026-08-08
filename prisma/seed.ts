@@ -21,7 +21,7 @@ async function main() {
 
   const admin = await prisma.employee.create({
     data: {
-      firstName: "Nina",
+      firstName: "Jaka",
       lastName: "(vodstvo)",
       role: "admin",
       pinHash: await bcrypt.hash(pin, 10),
