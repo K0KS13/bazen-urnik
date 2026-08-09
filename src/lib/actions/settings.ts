@@ -169,6 +169,71 @@ export async function updateShiftHoursAction(
   return { ok: "Privzete ure shranjene." };
 }
 
+/** Dan, ko je lokal zaprt: vsak tak dan v tednu ali posamezen datum. */
+export async function saveClosedDayAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const scope = String(formData.get("scope") ?? "");
+  const note = String(formData.get("note") ?? "").trim();
+
+  if (scope === "weekday") {
+    const weekday = Number(formData.get("weekday") ?? 0);
+    if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
+      return { error: "Izberi dan v tednu." };
+    }
+
+    const existing = await prisma.closedDay.findFirst({
+      where: { scope: "weekday", weekday },
+      select: { id: true },
+    });
+    if (existing) return { error: "Ta dan je že označen kot zaprt." };
+
+    await prisma.closedDay.create({
+      data: { scope: "weekday", weekday, note: note || null },
+    });
+
+    revalidatePath("/nastavitve");
+    revalidatePath("/urnik");
+    return { ok: "Dan v tednu označen kot zaprt." };
+  }
+
+  if (scope === "date") {
+    const date = parseLocalDate(String(formData.get("date") ?? ""));
+    if (!date) return { error: "Izberi datum." };
+
+    const existing = await prisma.closedDay.findFirst({
+      where: { scope: "date", date },
+      select: { id: true },
+    });
+    if (existing) return { error: "Ta datum je že označen kot zaprt." };
+
+    await prisma.closedDay.create({
+      data: { scope: "date", date, note: note || null },
+    });
+
+    revalidatePath("/nastavitve");
+    revalidatePath("/urnik");
+    return { ok: "Datum označen kot zaprt." };
+  }
+
+  return { error: "Neveljavna vrsta." };
+}
+
+export async function deleteClosedDayAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+
+  await prisma.closedDay.delete({ where: { id } });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/urnik");
+  return { ok: "Odstranjeno — lokal je ta dan spet odprt." };
+}
+
 const DEFAULT_POSITIONS = ["Šank", "Kuhinja", "Strežba", "Bazen"];
 
 /** Ob prvem zagonu ponudimo običajna delovna mesta, da ni treba tipkati. */

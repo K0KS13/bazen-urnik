@@ -197,6 +197,24 @@ model PayRule {
   @@index([date])
 }
 
+/// Dan, ko je lokal zaprt — bodisi vsak tak dan v tednu (npr. vsak ponedeljek)
+/// bodisi posamezen datum (dopust, praznik). Urnik se tak dan ne sestavlja.
+model ClosedDay {
+  id      String    @id @default(cuid())
+  /// "weekday" | "date"
+  scope   String
+  /// 1 = ponedeljek … 7 = nedelja; samo pri scope "weekday"
+  weekday Int?
+  /// Konkreten dan ob polnoči; samo pri scope "date"
+  date    DateTime?
+  note    String?
+
+  createdAt DateTime @default(now())
+
+  @@index([scope])
+  @@index([date])
+}
+
 /// Enovrstična tabela z nastavitvami lokala.
 model Settings {
   id String @id @default("default")

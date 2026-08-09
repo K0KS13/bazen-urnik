@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { AvailabilityStatus } from "@/lib/availability";
+import { isClosed } from "@/lib/closed-days";
 import { plural } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import {
@@ -31,7 +32,7 @@ export async function generateWeekAction(
   const weekStart = startOfWeek(requested);
   const weekEnd = addDays(weekStart, 7);
 
-  const [templates, employees] = await Promise.all([
+  const [templates, employees, closedDays] = await Promise.all([
     prisma.shiftTemplate.findMany({
       where: { active: true, position: { active: true } },
       include: { position: { select: { name: true } } },
@@ -60,6 +61,7 @@ export async function generateWeekAction(
         },
       },
     }),
+    prisma.closedDay.findMany(),
   ]);
 
   if (templates.length === 0) {
@@ -70,7 +72,15 @@ export async function generateWeekAction(
   }
 
   const slots: SchedulerSlot[] = [];
+  let closedSkipped = 0;
+
   for (const day of weekDays(weekStart)) {
+    // Na dan, ko je lokal zaprt, se izmene ne razporejajo.
+    if (isClosed(day, closedDays)) {
+      closedSkipped += 1;
+      continue;
+    }
+
     const weekday = day.getDay() === 0 ? 7 : day.getDay();
     for (const template of templates.filter((t) => t.weekday === weekday)) {
       const slot = slotFromTemplate(day, template);
@@ -79,7 +89,12 @@ export async function generateWeekAction(
   }
 
   if (slots.length === 0) {
-    return { error: "Za ta teden predloge ne dajo nobene izmene." };
+    return {
+      error:
+        closedSkipped === 7
+          ? "Ta teden je lokal zaprt vse dni."
+          : "Za ta teden predloge ne dajo nobene izmene.",
+    };
   }
 
   const candidates: SchedulerCandidate[] = employees.map((employee) => {

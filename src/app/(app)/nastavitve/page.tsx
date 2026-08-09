@@ -3,9 +3,11 @@ import { PartOfDayTimes } from "@/components/part-of-day-times";
 import {
   addDefaultPositionsAction,
   createPositionAction,
+  deleteClosedDayAction,
   deletePayRuleAction,
   deletePositionAction,
   deleteShiftTemplateAction,
+  saveClosedDayAction,
   savePayRuleAction,
   saveShiftTemplateAction,
   updateLateSettingsAction,
@@ -30,12 +32,15 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   await requireAdmin();
 
-  const [settings, rules, positions, templates] = await Promise.all([
+  const [settings, rules, positions, closedDays, templates] = await Promise.all([
     getSettings(),
     prisma.payRule.findMany({
       orderBy: [{ scope: "asc" }, { weekday: "asc" }, { date: "asc" }],
     }),
     prisma.position.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.closedDay.findMany({
+      orderBy: [{ scope: "asc" }, { weekday: "asc" }, { date: "asc" }],
+    }),
     prisma.shiftTemplate.findMany({
       orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
       include: { position: { select: { name: true } } },
@@ -109,6 +114,83 @@ export default async function SettingsPage() {
           <button type="submit" className="btn-secondary">
             Dodaj
           </button>
+        </ActionForm>
+      </section>
+
+      <section className="card">
+        <h2 className="font-semibold">Zaprti dnevi</h2>
+        <p className="mt-1 text-sm text-muted">
+          Na te dneve se urnik ne sestavlja in kopiranje tedna jih preskoči. Če
+          kljub temu vpišeš izmeno (zaprta zabava, čiščenje), te aplikacija le
+          opozori.
+        </p>
+
+        {closedDays.length > 0 ? (
+          <ul className="mt-3 flex flex-col gap-2">
+            {closedDays.map((day) => (
+              <li
+                key={day.id}
+                className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2 text-sm"
+              >
+                <span>
+                  {day.scope === "weekday"
+                    ? `Vsak ${WEEKDAY_LABELS[day.weekday ?? 0]?.toLowerCase() ?? "—"}`
+                    : day.date
+                      ? formatDate(day.date)
+                      : "—"}
+                  {day.note ? (
+                    <span className="text-muted"> · {day.note}</span>
+                  ) : null}
+                </span>
+                <ActionForm
+                  action={deleteClosedDayAction}
+                  confirm="Ta dan spet odprt?"
+                >
+                  <input type="hidden" name="id" value={day.id} />
+                  <button type="submit" className="btn-danger px-2 py-1 text-xs">
+                    ✕
+                  </button>
+                </ActionForm>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm text-muted">Ni označenih zaprtih dni.</p>
+        )}
+
+        <ActionForm action={saveClosedDayAction} className="mt-4 flex flex-col gap-3">
+          <input type="hidden" name="scope" value="weekday" />
+          <p className="label">Vsak teden zaprto</p>
+          <div className="flex gap-2">
+            <select name="weekday" className="field flex-1" defaultValue={1}>
+              {WEEKDAYS.map((weekday) => (
+                <option key={weekday} value={weekday}>
+                  {WEEKDAY_LABELS[weekday]}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="btn-secondary">
+              Označi
+            </button>
+          </div>
+        </ActionForm>
+
+        <ActionForm action={saveClosedDayAction} className="mt-3 flex flex-col gap-3">
+          <input type="hidden" name="scope" value="date" />
+          <p className="label">Zaprto na določen datum</p>
+          <div className="flex gap-2">
+            <input
+              name="date"
+              type="date"
+              className="field flex-1"
+              defaultValue={toLocalDateValue(new Date())}
+              required
+            />
+            <button type="submit" className="btn-secondary">
+              Označi
+            </button>
+          </div>
+          <input name="note" className="field" placeholder="Razlog (neobvezno)" />
         </ActionForm>
       </section>
 

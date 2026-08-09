@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isClosed } from "@/lib/closed-days";
 import { plural } from "@/lib/format";
 import { derivePartOfDay, isPartOfDay } from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
@@ -96,6 +97,12 @@ export async function createShiftAction(formData: FormData): Promise<ActionState
     select: { status: true },
   });
 
+  // Zaprt dan je opozorilo, ne prepoved — včasih je v lokalu zaprta zabava.
+  const closedDays = await prisma.closedDay.findMany();
+  if (isClosed(start, closedDays)) {
+    return { ok: "Izmena dodana, a ta dan je lokal označen kot zaprt." };
+  }
+
   if (availability?.status === "no") {
     return { ok: "Izmena dodana, a ta oseba je za ta dan označila »ne morem«." };
   }
@@ -134,6 +141,8 @@ export async function copyPreviousWeekAction(
     return { error: "Prejšnji teden nima vpisanih izmen." };
   }
 
+  const closedDays = await prisma.closedDay.findMany();
+
   let copied = 0;
   let skipped = 0;
 
@@ -145,7 +154,7 @@ export async function copyPreviousWeekAction(
       where: { employeeId: shift.employeeId, start: { lt: end }, end: { gt: start } },
       select: { id: true },
     });
-    if (clash || (await isAbsent(shift.employeeId, start))) {
+    if (clash || isClosed(start, closedDays) || (await isAbsent(shift.employeeId, start))) {
       skipped += 1;
       continue;
     }
@@ -175,7 +184,7 @@ export async function copyPreviousWeekAction(
     ok:
       skipped > 0
         ? `Prepisano: ${shiftWord(copied)}. Preskočeno: ${shiftWord(skipped)} ` +
-          "(odsotnost ali že vpisana izmena)."
+          "(zaprt dan, odsotnost ali že vpisana izmena)."
         : `Prepisano: ${shiftWord(copied)}.`,
   };
 }

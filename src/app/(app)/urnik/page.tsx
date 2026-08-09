@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { Collapsible } from "@/components/collapsible";
 import { PartOfDayTimes } from "@/components/part-of-day-times";
+import { closedRuleFor } from "@/lib/closed-days";
 import { offerShiftAction } from "@/lib/actions/offers";
 import { generateWeekAction } from "@/lib/actions/scheduler";
 import {
@@ -65,7 +66,8 @@ export default async function SchedulePage({
   const weekEnd = addDays(weekStart, 7);
   const days = weekDays(weekStart);
 
-  const [shifts, absences, employees, positions, settings] = await Promise.all([
+  const [shifts, absences, employees, positions, closedDays, settings] =
+    await Promise.all([
     prisma.shift.findMany({
       where: { start: { gte: weekStart, lt: weekEnd } },
       orderBy: { start: "asc" },
@@ -95,6 +97,7 @@ export default async function SchedulePage({
           orderBy: { sortOrder: "asc" },
         })
       : Promise.resolve([]),
+    prisma.closedDay.findMany(),
     getSettings(),
   ]);
 
@@ -142,25 +145,33 @@ export default async function SchedulePage({
             (absence) => absence.startDate < dayEnd && absence.endDate >= day,
           );
           const isToday = day.toDateString() === now.toDateString();
+          const closed = closedRuleFor(day, closedDays);
 
           return (
             <section
               key={day.toISOString()}
-              className={`card ${isToday ? "border-accent/60" : ""}`}
+              className={`card ${isToday ? "border-accent/60" : ""} ${
+                closed ? "opacity-70" : ""
+              }`}
             >
-              <h2 className="mb-2 flex items-baseline justify-between">
+              <h2 className="mb-2 flex items-baseline justify-between gap-2">
                 <span className="font-semibold">
                   {DAY_LABELS[index]}
                   {isToday ? (
                     <span className="ml-2 text-xs font-normal text-accent">danes</span>
                   ) : null}
                 </span>
+                {closed ? (
+                  <span className="rounded-full bg-danger/15 px-2 py-0.5 text-xs font-semibold text-danger">
+                    Zaprto{closed.note ? ` · ${closed.note}` : ""}
+                  </span>
+                ) : null}
                 <span className="text-sm text-muted">
                   {day.getDate()}. {day.getMonth() + 1}.
                 </span>
               </h2>
 
-              {dayShifts.length === 0 && dayAbsences.length === 0 ? (
+              {dayShifts.length === 0 && dayAbsences.length === 0 && !closed ? (
                 <p className="text-sm text-muted">—</p>
               ) : null}
 
