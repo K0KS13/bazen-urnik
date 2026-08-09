@@ -1,12 +1,15 @@
 import { ActionForm } from "@/components/action-form";
 import { PartOfDayTimes } from "@/components/part-of-day-times";
+import { WeekdayPicker } from "@/components/weekday-picker";
 import {
   addDefaultPositionsAction,
+  copyTemplatesToWeekdaysAction,
   createPositionAction,
   deleteClosedDayAction,
   deletePayRuleAction,
   deletePositionAction,
   deleteShiftTemplateAction,
+  deleteWeekdayTemplatesAction,
   saveClosedDayAction,
   savePayRuleAction,
   saveShiftTemplateAction,
@@ -259,31 +262,22 @@ export default async function SettingsPage() {
             action={saveShiftTemplateAction}
             className="mt-3 flex flex-col gap-3"
           >
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label" htmlFor="tpl-weekday">
-                  Dan
-                </label>
-                <select id="tpl-weekday" name="weekday" className="field" defaultValue={5}>
-                  {WEEKDAYS.map((weekday) => (
-                    <option key={weekday} value={weekday}>
-                      {WEEKDAY_LABELS[weekday]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label" htmlFor="tpl-position">
-                  Delovno mesto
-                </label>
-                <select id="tpl-position" name="positionId" className="field" required>
-                  {positions.map((position) => (
-                    <option key={position.id} value={position.id}>
-                      {position.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <p className="label">Dnevi (izbereš lahko več hkrati)</p>
+              <WeekdayPicker />
+            </div>
+
+            <div>
+              <label className="label" htmlFor="tpl-position">
+                Delovno mesto
+              </label>
+              <select id="tpl-position" name="positionId" className="field" required>
+                {positions.map((position) => (
+                  <option key={position.id} value={position.id}>
+                    {position.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <PartOfDayTimes defaults={partDefaults} />
@@ -334,58 +328,122 @@ export default async function SettingsPage() {
             </div>
 
             <button type="submit" className="btn-primary">
-              Dodaj predlogo
+              Dodaj na izbrane dneve
             </button>
           </ActionForm>
         )}
+      </section>
+
+      <section className="card">
+        <h2 className="font-semibold">
+          Pregled tedna ({plural(templates.length, [
+            "predloga",
+            "predlogi",
+            "predloge",
+            "predlog",
+          ])})
+        </h2>
+
+        {templates.length === 0 ? (
+          <p className="mt-2 text-sm text-muted">Predlog še ni.</p>
+        ) : (
+          <div className="mt-3 flex flex-col gap-3">
+            {WEEKDAYS.map((weekday) => {
+              const forDay = templates.filter(
+                (template) => template.weekday === weekday,
+              );
+              if (forDay.length === 0) return null;
+
+              const people = forDay.reduce(
+                (total, template) => total + template.peopleNeeded,
+                0,
+              );
+
+              return (
+                <div key={weekday} className="rounded-xl bg-surface-2 p-3">
+                  <div className="mb-2 flex items-baseline justify-between gap-2">
+                    <span className="font-medium">{WEEKDAY_LABELS[weekday]}</span>
+                    <span className="text-xs text-muted">
+                      {plural(people, ["oseba", "osebi", "osebe", "oseb"])} skupaj
+                    </span>
+                    <ActionForm
+                      action={deleteWeekdayTemplatesAction}
+                      confirm={`Izbrišem vse predloge za ${WEEKDAY_LABELS[weekday].toLowerCase()}?`}
+                    >
+                      <input type="hidden" name="weekday" value={weekday} />
+                      <button
+                        type="submit"
+                        className="text-xs text-danger hover:underline"
+                      >
+                        počisti dan
+                      </button>
+                    </ActionForm>
+                  </div>
+
+                  <ul className="flex flex-col gap-1.5">
+                    {forDay.map((template) => (
+                      <li
+                        key={template.id}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${
+                            PART_CLASS[template.partOfDay as PartOfDay] ?? ""
+                          }`}
+                        >
+                          {PART_LABELS[template.partOfDay as PartOfDay] ??
+                            template.partOfDay}
+                        </span>
+                        <span className="shrink-0 font-mono text-xs tabular-nums">
+                          {template.startTime}–{template.endTime}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {template.position.name}
+                        </span>
+                        <span className="shrink-0 text-xs text-muted">
+                          ×{template.peopleNeeded}
+                          {template.leadLevel ? ` · ≥${template.leadLevel}` : ""}
+                        </span>
+                        <ActionForm
+                          action={deleteShiftTemplateAction}
+                          confirm="Izbrišem predlogo?"
+                        >
+                          <input type="hidden" name="id" value={template.id} />
+                          <button
+                            type="submit"
+                            aria-label="Izbriši predlogo"
+                            className="btn-danger px-2 py-0.5 text-xs"
+                          >
+                            ✕
+                          </button>
+                        </ActionForm>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {templates.length > 0 ? (
-          <ul className="mt-4 flex flex-col gap-2">
-            {templates.map((template) => (
-              <li
-                key={template.id}
-                className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2 text-sm"
-              >
-                <span className="min-w-0">
-                  <span className="font-medium">
-                    {WEEKDAY_LABELS[template.weekday]}
-                  </span>{" "}
-                  · {template.position.name}
-                  <span
-                    className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${
-                      PART_CLASS[template.partOfDay as PartOfDay] ?? ""
-                    }`}
-                  >
-                    {PART_LABELS[template.partOfDay as PartOfDay] ??
-                      template.partOfDay}
-                  </span>
-                  <span className="block text-xs text-muted">
-                    {template.startTime}–{template.endTime} ·{" "}
-                    {plural(template.peopleNeeded, [
-                      "oseba",
-                      "osebi",
-                      "osebe",
-                      "oseb",
-                    ])}
-                    {" · ocena ≥ "}
-                    {template.minLevel}
-                    {template.leadLevel
-                      ? ` · vsaj eden ≥ ${template.leadLevel}`
-                      : ""}
-                  </span>
-                </span>
-                <ActionForm
-                  action={deleteShiftTemplateAction}
-                  confirm="Izbrišem predlogo?"
-                >
-                  <input type="hidden" name="id" value={template.id} />
-                  <button type="submit" className="btn-danger px-2 py-1 text-xs">
-                    ✕
-                  </button>
-                </ActionForm>
-              </li>
-            ))}
-          </ul>
+          <ActionForm
+            action={copyTemplatesToWeekdaysAction}
+            className="mt-4 flex flex-col gap-3 border-t border-border pt-4"
+          >
+            <p className="label">Prepiši cel dan na druge dneve</p>
+            <select name="fromWeekday" className="field" defaultValue={1}>
+              {WEEKDAYS.map((weekday) => (
+                <option key={weekday} value={weekday}>
+                  {WEEKDAY_LABELS[weekday]}
+                </option>
+              ))}
+            </select>
+            <WeekdayPicker />
+            <button type="submit" className="btn-secondary">
+              Prepiši
+            </button>
+          </ActionForm>
         ) : null}
       </section>
 

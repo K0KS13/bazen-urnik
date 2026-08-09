@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { plural } from "@/lib/format";
 import { isPartOfDay } from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
@@ -285,12 +286,25 @@ export async function deletePositionAction(
   return { ok: "Delovno mesto izbrisano." };
 }
 
+/** Dnevi v tednu, izbrani s potrditvenimi polji. */
+function readWeekdays(formData: FormData): number[] {
+  return formData
+    .getAll("weekdays")
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value >= 1 && value <= 7);
+}
+
+/** Tožilnik, ker se pojavi za predlogom »na«: na 1 dan, na 2 dneva, na 4 dneve. */
+const dayWord = (count: number) =>
+  plural(count, ["dan", "dneva", "dneve", "dni"]);
+
+/** Doda isto predlogo na vse izbrane dneve hkrati. */
 export async function saveShiftTemplateAction(
   formData: FormData,
 ): Promise<ActionState> {
   await requireAdmin();
 
-  const weekday = Number(formData.get("weekday") ?? 0);
+  const weekdays = readWeekdays(formData);
   const positionId = String(formData.get("positionId") ?? "");
   const partOfDay = String(formData.get("partOfDay") ?? "");
   const startTime = String(formData.get("startTime") ?? "");
@@ -299,9 +313,7 @@ export async function saveShiftTemplateAction(
   const minLevel = Number(formData.get("minLevel") ?? 1);
   const leadLevelRaw = String(formData.get("leadLevel") ?? "");
 
-  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
-    return { error: "Izberi dan v tednu." };
-  }
+  if (weekdays.length === 0) return { error: "Izberi vsaj en dan." };
   if (!positionId) return { error: "Izberi delovno mesto." };
   if (!isPartOfDay(partOfDay)) return { error: "Izberi del dneva." };
   if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) {
@@ -322,8 +334,20 @@ export async function saveShiftTemplateAction(
     return { error: "Ocena izkušenega mora biti med 1 in 5." };
   }
 
-  await prisma.shiftTemplate.create({
-    data: {
+  // Enaka predloga na istem dnevu je skoraj vedno pomota, zato jo preskočimo.
+  const existing = await prisma.shiftTemplate.findMany({
+    where: { positionId, startTime, endTime, weekday: { in: weekdays } },
+    select: { weekday: true },
+  });
+  const alreadyThere = new Set(existing.map((row) => row.weekday));
+  const toCreate = weekdays.filter((weekday) => !alreadyThere.has(weekday));
+
+  if (toCreate.length === 0) {
+    return { error: "Te predloge so na izbranih dnevih že vpisane." };
+  }
+
+  await prisma.shiftTemplate.createMany({
+    data: toCreate.map((weekday) => ({
       weekday,
       partOfDay,
       positionId,
@@ -332,12 +356,108 @@ export async function saveShiftTemplateAction(
       peopleNeeded,
       minLevel,
       leadLevel,
-    },
+    })),
   });
 
   revalidatePath("/nastavitve");
   revalidatePath("/urnik");
-  return { ok: "Predloga izmene dodana." };
+
+  const skipped = weekdays.length - toCreate.length;
+  return {
+    ok:
+      skipped > 0
+        ? `Dodano na ${dayWord(toCreate.length)}, ${skipped} preskočenih (že vpisano).`
+        : `Dodano na ${dayWord(toCreate.length)}.`,
+  };
+}
+
+/** Prepiše ves dan predlog na druge dneve — najhitrejša pot do celega tedna. */
+export async function copyTemplatesToWeekdaysAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const from = Number(formData.get("fromWeekday") ?? 0);
+  const targets = readWeekdays(formData).filter((day) => day !== from);
+
+  if (!Number.isInteger(from) || from < 1 || from > 7) {
+    return { error: "Izberi dan, ki ga želiš prepisati." };
+  }
+  if (targets.length === 0) return { error: "Izberi vsaj en ciljni dan." };
+
+  const source = await prisma.shiftTemplate.findMany({ where: { weekday: from } });
+  if (source.length === 0) {
+    return { error: "Izbrani dan nima nobene predloge." };
+  }
+
+  const existing = await prisma.shiftTemplate.findMany({
+    where: { weekday: { in: targets } },
+    select: { weekday: true, positionId: true, startTime: true, endTime: true },
+  });
+  const key = (row: {
+    weekday: number;
+    positionId: string;
+    startTime: string;
+    endTime: string;
+  }) => `${row.weekday}|${row.positionId}|${row.startTime}|${row.endTime}`;
+  const known = new Set(existing.map(key));
+
+  const rows = targets.flatMap((weekday) =>
+    source
+      .map((template) => ({
+        weekday,
+        partOfDay: template.partOfDay,
+        positionId: template.positionId,
+        startTime: template.startTime,
+        endTime: template.endTime,
+        peopleNeeded: template.peopleNeeded,
+        minLevel: template.minLevel,
+        leadLevel: template.leadLevel,
+      }))
+      .filter((row) => !known.has(key(row))),
+  );
+
+  if (rows.length === 0) {
+    return { error: "Na ciljnih dnevih so te predloge že vpisane." };
+  }
+
+  await prisma.shiftTemplate.createMany({ data: rows });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/urnik");
+  return {
+    ok: `Prepisano na ${dayWord(targets.length)} — ${plural(rows.length, [
+      "nova predloga",
+      "novi predlogi",
+      "nove predloge",
+      "novih predlog",
+    ])}.`,
+  };
+}
+
+/** Počisti cel dan naenkrat, da ni treba brisati vrstice za vrstico. */
+export async function deleteWeekdayTemplatesAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const weekday = Number(formData.get("weekday") ?? 0);
+  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
+    return { error: "Neveljaven dan." };
+  }
+
+  const removed = await prisma.shiftTemplate.deleteMany({ where: { weekday } });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/urnik");
+  return {
+    ok: `Izbrisano: ${plural(removed.count, [
+      "predloga",
+      "predlogi",
+      "predloge",
+      "predlog",
+    ])}.`,
+  };
 }
 
 export async function deleteShiftTemplateAction(
