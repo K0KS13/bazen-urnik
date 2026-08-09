@@ -30,6 +30,7 @@ model Employee {
   timeEntries   TimeEntry[] @relation("EntryEmployee")
   editedEntries TimeEntry[] @relation("EntryEditedBy")
 
+  availability    Availability[] @relation("AvailabilityEmployee")
   absences        Absence[]    @relation("AbsenceEmployee")
   decidedAbsences Absence[]    @relation("AbsenceDecidedBy")
   offeredShifts   ShiftOffer[] @relation("OfferOfferedBy")
@@ -56,6 +57,8 @@ model Shift {
   /// Ponudba za oddajo te izmene, če je bila oddana.
   offer ShiftOffer?
 
+  timeEntries TimeEntry[] @relation("EntryShift")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -74,6 +77,15 @@ model TimeEntry {
   breakMinutes Int       @default(0)
   note         String?
 
+  /// Načrtovana izmena, na katero se je zaposleni prijavil (če je bila vpisana).
+  shiftId String?
+  shift   Shift?  @relation("EntryShift", fields: [shiftId], references: [id], onDelete: SetNull)
+
+  /// Zamuda za načrtovanim začetkom in odbitek, izračunan ob prijavi.
+  /// Zapišemo ju, da poznejša sprememba pravil ne spremeni že obračunanih ur.
+  lateMinutes    Int @default(0)
+  penaltyMinutes Int @default(0)
+
   /// Sledljivost ročnih popravkov — kdo in kdaj je vnos spremenil.
   editedById String?
   editedBy   Employee? @relation("EntryEditedBy", fields: [editedById], references: [id], onDelete: SetNull)
@@ -84,6 +96,62 @@ model TimeEntry {
 
   @@index([employeeId, clockIn])
   @@index([clockIn])
+}
+
+/// Tedenska razpoložljivost zaposlenega — okvir, ki ga vodja upošteva pri urniku.
+model Availability {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation("AvailabilityEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  /// 1 = ponedeljek … 7 = nedelja
+  weekday    Int
+  /// "yes" | "maybe" | "no" — glej src/lib/availability.ts
+  status     String   @default("yes")
+  /// Okvirni čas, ko je na voljo, npr. "16:00"–"23:00". Neobvezno.
+  fromTime   String?
+  toTime     String?
+  note       String?
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, weekday])
+}
+
+/// Dodatek na urno postavko za določen dan v tednu ali za konkreten datum.
+/// Pravilo za konkreten datum ima prednost pred pravilom za dan v tednu.
+/// Dodatki se upoštevajo ob izračunu, zato jih je mogoče dodati tudi za nazaj.
+model PayRule {
+  id     String @id @default(cuid())
+  /// "weekday" | "date"
+  scope  String
+  /// 1 = ponedeljek … 7 = nedelja; samo pri scope "weekday"
+  weekday Int?
+  /// Konkreten dan ob polnoči; samo pri scope "date"
+  date    DateTime?
+  /// Dodatek v EUR na uro.
+  bonusPerHour Float
+  label   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scope])
+  @@index([date])
+}
+
+/// Enovrstična tabela z nastavitvami lokala.
+model Settings {
+  id String @id @default("default")
+
+  /// Odbijanje ur za zamujanje.
+  latePenaltyEnabled       Boolean @default(false)
+  /// Zamuda do te meje se ne kaznuje.
+  lateToleranceMinutes     Int     @default(0)
+  /// Vsak začeti blok te dolžine pomeni en odbitek.
+  lateBlockMinutes         Int     @default(15)
+  /// Koliko minut dela se odbije za vsak začeti blok zamude.
+  latePenaltyMinutesPerBlock Int   @default(60)
+
+  updatedAt DateTime @updatedAt
 }
 
 /// Napovedana odsotnost (dopust, bolniška, drugo), ki jo potrdi vodja.

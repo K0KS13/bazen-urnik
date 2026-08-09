@@ -95,6 +95,14 @@ export default async function HoursPage({
                     Odmor: {entry.breakMinutes} min
                   </p>
                 ) : null}
+                {entry.lateMinutes > 0 ? (
+                  <p className="mt-1 text-xs text-warning">
+                    Zamuda: {entry.lateMinutes} min
+                    {entry.penaltyMinutes > 0
+                      ? ` · odbitek ${formatMinutes(entry.penaltyMinutes)} h`
+                      : " · brez odbitka"}
+                  </p>
+                ) : null}
                 {entry.note ? (
                   <p className="mt-1 text-xs text-muted">{entry.note}</p>
                 ) : null}
@@ -138,17 +146,31 @@ export default async function HoursPage({
                           />
                         </div>
                       </div>
-                      <div>
-                        <label className="label">Odmor (min)</label>
-                        <input
-                          name="breakMinutes"
-                          type="number"
-                          min={0}
-                          max={480}
-                          step={5}
-                          className="field"
-                          defaultValue={entry.breakMinutes}
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="label">Odmor (min)</label>
+                          <input
+                            name="breakMinutes"
+                            type="number"
+                            min={0}
+                            max={480}
+                            step={5}
+                            className="field"
+                            defaultValue={entry.breakMinutes}
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Odbitek za zamudo (min)</label>
+                          <input
+                            name="penaltyMinutes"
+                            type="number"
+                            min={0}
+                            max={960}
+                            step={15}
+                            className="field"
+                            defaultValue={entry.penaltyMinutes}
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="label">Opomba</label>

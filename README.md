@@ -49,6 +49,37 @@ Nameščanje iz trgovine z aplikacijami ni potrebno.
   oseba v tem obdobju že vpisane izmene.
 - Odobrene odsotnosti so vidne v urniku.
 
+**Razpoložljivost**
+
+- Zaposleni za vsak dan v tednu označi *lahko delam / po dogovoru / ne morem*,
+  po želji z okvirnim časom.
+- Vodja vidi mrežo cele ekipe po dnevih. Če vpiše izmeno na dan, ko je nekdo
+  označil »ne morem«, dobi opozorilo — izmena se vseeno vpiše, ker je
+  razpoložljivost okvir, ne prepoved. Za konkretne dneve, ko koga ne bo, se
+  uporabi **Odsotnosti**.
+
+**Dodatki na urno postavko**
+
+- Dodatek za **dan v tednu** (npr. sobota in nedelja +1 €/h).
+- Dodatek za **konkreten datum** (praznik ali naknadni dogovor), ki prevlada nad
+  pravilom za dan v tednu.
+- Dodatki se računajo ob izračunu, ne shranjujejo se k vnosu — zato jih je
+  mogoče dodati **tudi za nazaj** in se pretekli meseci preračunajo sami.
+- V izvozu so vidni ločeno: osnovna postavka, dodatek, postavka skupaj in bruto.
+
+**Odbijanje ur za zamujanje** (privzeto izklopljeno)
+
+- Zamuda se meri glede na začetek vpisane izmene. Vsak začeti blok nad
+  toleranco pomeni en odbitek — pri privzetih nastavitvah 1–15 min zamude
+  pomeni uro, 16–30 min dve uri, 31–45 min tri ure.
+- Blok, odbitek in tolerance so nastavljivi; stran sproti pokaže, kaj trenutne
+  nastavitve pomenijo.
+- Odbitek se izračuna ob prijavi in **zapiše k vnosu**, zato poznejša sprememba
+  nastavitev ne spremeni že obračunanih ur. Vodja ga lahko pri posameznem vnosu
+  popravi.
+- Odtegljaji od plače so v Sloveniji pravno omejeni (ZDR-1). Funkcija je zato
+  privzeto izklopljena — vklopi jo vodstvo v **Nastavitve**.
+
 **Za vodje**
 
 - **Za urediti** na začetni strani zbere vse, kar čaka: pozabljene odjave
@@ -61,9 +92,9 @@ Nameščanje iz trgovine z aplikacijami ni potrebno.
 
 | Vloga | Sme |
 | --- | --- |
-| Zaposlen/a | prijava/odjava na uro, svoj urnik, svoje ure, oddaja in prevzem izmen, vloge za odsotnost, sprememba svojega PIN-a |
-| Vodja izmene | vse zgoraj + urejanje urnika za vse, popravki ur, potrjevanje odsotnosti in menjav, izvoz |
-| Vodstvo | vse zgoraj + dodajanje/urejanje zaposlenih, vloge, urne postavke, ponastavitev PIN-a, odločanje o vlogah vodij |
+| Zaposlen/a | prijava/odjava na uro, svoj urnik, svoje ure, oddaja in prevzem izmen, vloge za odsotnost, razpoložljivost, sprememba svojega PIN-a |
+| Vodja izmene | vse zgoraj + urejanje urnika za vse, popravki ur, potrjevanje odsotnosti in menjav, pregled razpoložljivosti ekipe, izvoz |
+| Vodstvo | vse zgoraj + dodajanje/urejanje zaposlenih, vloge, urne postavke, dodatki, nastavitve zamud, ponastavitev PIN-a, odločanje o vlogah vodij |
 
 ## Namestitev na telefon
 
@@ -144,9 +175,11 @@ src/
       urnik/         tedenski urnik, kopiranje tedna, oddaja izmen
       menjave/       ponujene izmene, prevzemi, potrditve
       odsotnosti/    vloge za dopust in bolniško
+      razpolozljivost/ tedenska razpoložljivost in mreža ekipe
       ure/           mesečni pregled ur in popravki
       izvoz/         seštevki in CSV
       zaposleni/     ekipa (samo vodstvo)
+      nastavitve/    dodatki na postavko in odbijanje ur (samo vodstvo)
     api/izvoz/       CSV za obračun
     manifest.ts      podatki za namestitev na telefon
     icon.tsx         ikona aplikacije
@@ -154,6 +187,8 @@ src/
     actions/         strežniške akcije (pisanje v bazo)
     session.ts       seja in preverjanje pravic
     approvals.ts     kdo sme odločati o kateri vlogi
+    pay.ts           dodatki na urno postavko
+    lateness.ts      izračun odbitka za zamudo
     time.ts          računanje in izpis ur
 prisma/
   schema.prisma      podatkovni model
@@ -167,6 +202,9 @@ prisma/
 - Odobrena odsotnost ne izbriše že vpisanih izmen; vodja dobi opozorilo in jih
   prerazporedi sam.
 - Izmene, ki še tečejo (brez odjave), niso vštete v izvoz.
+- Dodatek na postavko se določi po dnevu, ko se je izmena **začela**.
+- Če je odbitek za zamudo večji od opravljenega časa, se ure ustavijo pri nič —
+  v minus ne gredo.
 
 ## Objava na splet
 

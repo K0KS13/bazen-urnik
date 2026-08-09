@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/action-form";
+import { Collapsible } from "@/components/collapsible";
 import {
   cancelAbsenceAction,
   decideAbsenceAction,
@@ -112,8 +113,7 @@ export default async function AbsencesPage() {
         </section>
       ) : null}
 
-      <details className="card" open={mine.length === 0}>
-        <summary className="cursor-pointer font-semibold">Oddaj vlogo</summary>
+      <Collapsible summary="Oddaj vlogo" defaultOpen={mine.length === 0}>
         <ActionForm action={requestAbsenceAction} className="mt-3 flex flex-col gap-3">
           <div>
             <label className="label" htmlFor="type">
@@ -168,7 +168,7 @@ export default async function AbsencesPage() {
             Oddaj vlogo
           </button>
         </ActionForm>
-      </details>
+      </Collapsible>
 
       <section className="flex flex-col gap-2">
         <h2 className="font-semibold">Moje vloge</h2>

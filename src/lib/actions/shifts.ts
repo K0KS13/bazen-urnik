@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { plural } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { requireScheduleManager } from "@/lib/session";
-import { addDays, parseLocalDate, startOfWeek } from "@/lib/time";
+import { addDays, isoWeekday, parseLocalDate, startOfWeek } from "@/lib/time";
 import type { ActionState } from "@/lib/actions/time";
 
 /** Ali ima zaposleni na dan te izmene odobreno odsotnost. */
@@ -71,6 +71,23 @@ export async function createShiftAction(formData: FormData): Promise<ActionState
 
   revalidatePath("/urnik");
   revalidatePath("/");
+
+  // Razpoložljivost je okvir, ne prepoved — izmeno vpišemo, a na neujemanje
+  // opozorimo, da vodja ve, da se je treba dogovoriti.
+  const availability = await prisma.availability.findUnique({
+    where: {
+      employeeId_weekday: { employeeId, weekday: isoWeekday(start) },
+    },
+    select: { status: true },
+  });
+
+  if (availability?.status === "no") {
+    return { ok: "Izmena dodana, a ta oseba je za ta dan označila »ne morem«." };
+  }
+  if (availability?.status === "maybe") {
+    return { ok: "Izmena dodana. Ta dan ima oseba označen »po dogovoru«." };
+  }
+
   return { ok: "Izmena dodana." };
 }
 

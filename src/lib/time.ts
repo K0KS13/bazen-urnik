@@ -53,15 +53,50 @@ export function monthRange(year: number, month: number): { from: Date; to: Date 
   };
 }
 
-/** Opravljene minute vnosa; vnos brez odjave šteje 0. */
+/** 1 = ponedeljek … 7 = nedelja (kot ISO, ne kot Date.getDay()). */
+export function isoWeekday(date: Date): number {
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
+}
+
+export function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+export function startOfDay(date: Date): Date {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+/** Čas med prijavo in odjavo, brez odbitkov. */
+export function grossMinutes(entry: {
+  clockIn: Date;
+  clockOut: Date | null;
+}): number {
+  if (!entry.clockOut) return 0;
+  return Math.max(
+    0,
+    Math.round((entry.clockOut.getTime() - entry.clockIn.getTime()) / 60000),
+  );
+}
+
+/** Opravljene minute vnosa, brez odmora in odbitka za zamudo. */
 export function workedMinutes(entry: {
   clockIn: Date;
   clockOut: Date | null;
   breakMinutes: number;
+  penaltyMinutes: number;
 }): number {
   if (!entry.clockOut) return 0;
-  const gross = (entry.clockOut.getTime() - entry.clockIn.getTime()) / 60000;
-  return Math.max(0, Math.round(gross) - entry.breakMinutes);
+  return Math.max(
+    0,
+    grossMinutes(entry) - entry.breakMinutes - entry.penaltyMinutes,
+  );
 }
 
 /** 456 -> "7:36" */

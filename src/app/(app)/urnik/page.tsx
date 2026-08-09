@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
+import { Collapsible } from "@/components/collapsible";
 import { offerShiftAction } from "@/lib/actions/offers";
 import {
   copyPreviousWeekAction,
@@ -265,8 +266,7 @@ export default async function SchedulePage({
             </p>
           </ActionForm>
 
-          <details className="card" open={shifts.length === 0}>
-            <summary className="cursor-pointer font-semibold">Dodaj izmeno</summary>
+          <Collapsible summary="Dodaj izmeno" defaultOpen={shifts.length === 0}>
             <ActionForm action={createShiftAction} className="mt-3 flex flex-col gap-3">
               <div>
                 <label className="label" htmlFor="employeeId">
@@ -348,7 +348,7 @@ export default async function SchedulePage({
                 Dodaj izmeno
               </button>
             </ActionForm>
-          </details>
+          </Collapsible>
         </>
       ) : null}
     </div>

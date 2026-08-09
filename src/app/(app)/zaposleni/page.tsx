@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/action-form";
+import { Collapsible } from "@/components/collapsible";
 import {
   createEmployeeAction,
   deleteEmployeeAction,
@@ -30,8 +31,7 @@ export default async function EmployeesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <details className="card" open={employees.length <= 1}>
-        <summary className="cursor-pointer font-semibold">Dodaj zaposlenega</summary>
+      <Collapsible summary="Dodaj zaposlenega" defaultOpen={employees.length <= 1}>
         <ActionForm action={createEmployeeAction} className="mt-3 flex flex-col gap-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -94,7 +94,7 @@ export default async function EmployeesPage() {
             Dodaj
           </button>
         </ActionForm>
-      </details>
+      </Collapsible>
 
       <ul className="flex flex-col gap-2">
         {employees.map((employee) => (

@@ -38,10 +38,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         <NavLink href="/urnik" label="Urnik" />
         <NavLink href="/menjave" label="Menjave" badge={pendingOffers} />
         <NavLink href="/odsotnosti" label="Odsotnosti" />
+        <NavLink href="/razpolozljivost" label="Razpoložljivost" />
         <NavLink href="/ure" label="Ure" />
         {manages ? <NavLink href="/izvoz" label="Izvoz" /> : null}
         {canManageEmployees(user.role) ? (
-          <NavLink href="/zaposleni" label="Ekipa" />
+          <>
+            <NavLink href="/zaposleni" label="Ekipa" />
+            <NavLink href="/nastavitve" label="Nastavitve" />
+          </>
         ) : null}
       </nav>
 

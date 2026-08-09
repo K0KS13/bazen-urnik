@@ -58,7 +58,12 @@ export default async function ClockPage() {
         clockIn: { gte: from, lt: to },
         clockOut: { not: null },
       },
-      select: { clockIn: true, clockOut: true, breakMinutes: true },
+      select: {
+        clockIn: true,
+        clockOut: true,
+        breakMinutes: true,
+        penaltyMinutes: true,
+      },
     }),
     prisma.shift.findMany({
       where: { start: { gte: todayStart, lt: todayEnd } },

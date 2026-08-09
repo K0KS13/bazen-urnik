@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { bonusForDate, rateForDate } from "@/lib/pay";
 import { prisma } from "@/lib/prisma";
 import { canManageSchedule } from "@/lib/roles";
 import { getSessionUser } from "@/lib/session";
@@ -15,6 +16,12 @@ function csvCell(value: string | number | null): string {
   if (value === null) return "";
   const text = String(value);
   return /[";\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+/** Decimalno število z vejico, kot ga pričakuje slovenski Excel. */
+function csvNumber(value: number | null, decimals = 2): string {
+  if (value === null) return "";
+  return value.toFixed(decimals).replace(".", ",");
 }
 
 export async function GET(request: Request) {
@@ -34,13 +41,16 @@ export async function GET(request: Request) {
 
   const { from, to } = monthRange(year, month);
 
-  const entries = await prisma.timeEntry.findMany({
-    where: { clockIn: { gte: from, lt: to }, clockOut: { not: null } },
-    orderBy: [{ employeeId: "asc" }, { clockIn: "asc" }],
-    include: {
-      employee: { select: { firstName: true, lastName: true, hourlyRate: true } },
-    },
-  });
+  const [entries, payRules] = await Promise.all([
+    prisma.timeEntry.findMany({
+      where: { clockIn: { gte: from, lt: to }, clockOut: { not: null } },
+      orderBy: [{ employeeId: "asc" }, { clockIn: "asc" }],
+      include: {
+        employee: { select: { firstName: true, lastName: true, hourlyRate: true } },
+      },
+    }),
+    prisma.payRule.findMany(),
+  ]);
 
   const header = [
     "Priimek",
@@ -49,8 +59,12 @@ export async function GET(request: Request) {
     "Prijava",
     "Odjava",
     "Odmor (min)",
+    "Zamuda (min)",
+    "Odbitek (min)",
     "Ure (decimalno)",
-    "Urna postavka",
+    "Osnovna postavka",
+    "Dodatek na uro",
+    "Postavka skupaj",
     "Bruto",
     "Opomba",
   ];
@@ -59,22 +73,27 @@ export async function GET(request: Request) {
 
   for (const entry of entries) {
     const minutes = workedMinutes(entry);
-    const rate = entry.employee.hourlyRate;
+    const baseRate = entry.employee.hourlyRate;
+    const bonus = bonusForDate(entry.clockIn, payRules);
+    const rate = rateForDate(entry.clockIn, baseRate, payRules);
+
     lines.push(
       [
-        entry.employee.lastName,
-        entry.employee.firstName,
-        formatDate(entry.clockIn),
-        formatTime(entry.clockIn),
-        entry.clockOut ? formatTime(entry.clockOut) : "",
-        entry.breakMinutes,
-        decimalHours(minutes),
-        rate ? String(rate).replace(".", ",") : "",
-        rate ? ((minutes / 60) * rate).toFixed(2).replace(".", ",") : "",
-        entry.note ?? "",
-      ]
-        .map(csvCell)
-        .join(";"),
+        csvCell(entry.employee.lastName),
+        csvCell(entry.employee.firstName),
+        csvCell(formatDate(entry.clockIn)),
+        csvCell(formatTime(entry.clockIn)),
+        csvCell(entry.clockOut ? formatTime(entry.clockOut) : ""),
+        csvCell(entry.breakMinutes),
+        csvCell(entry.lateMinutes),
+        csvCell(entry.penaltyMinutes),
+        csvCell(decimalHours(minutes)),
+        csvNumber(baseRate),
+        csvNumber(bonus),
+        csvNumber(rate),
+        csvNumber(rate === null ? null : (minutes / 60) * rate),
+        csvCell(entry.note ?? ""),
+      ].join(";"),
     );
   }
 
