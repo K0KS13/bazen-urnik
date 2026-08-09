@@ -1,11 +1,16 @@
 import { ActionForm } from "@/components/action-form";
 import {
+  addDefaultPositionsAction,
+  createPositionAction,
   deletePayRuleAction,
+  deletePositionAction,
+  deleteShiftTemplateAction,
   savePayRuleAction,
+  saveShiftTemplateAction,
   updateLateSettingsAction,
 } from "@/lib/actions/settings";
 import { WEEKDAY_LABELS, WEEKDAYS } from "@/lib/availability";
-import { formatEuro } from "@/lib/format";
+import { formatEuro, plural } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
@@ -16,10 +21,15 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   await requireAdmin();
 
-  const [settings, rules] = await Promise.all([
+  const [settings, rules, positions, templates] = await Promise.all([
     getSettings(),
     prisma.payRule.findMany({
       orderBy: [{ scope: "asc" }, { weekday: "asc" }, { date: "asc" }],
+    }),
+    prisma.position.findMany({ orderBy: { sortOrder: "asc" } }),
+    prisma.shiftTemplate.findMany({
+      orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
+      include: { position: { select: { name: true } } },
     }),
   ]);
 
@@ -38,6 +48,222 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <section className="card">
+        <h2 className="font-semibold">Delovna mesta</h2>
+        <p className="mt-1 text-sm text-muted">
+          Podlaga za ocene zaposlenih in za predloge izmen.
+        </p>
+
+        {positions.length === 0 ? (
+          <ActionForm action={addDefaultPositionsAction} className="mt-3">
+            <button type="submit" className="btn-secondary w-full">
+              Dodaj privzeta (Šank, Kuhinja, Strežba, Bazen)
+            </button>
+          </ActionForm>
+        ) : (
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {positions.map((position) => (
+              <li
+                key={position.id}
+                className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-sm"
+              >
+                {position.name}
+                <ActionForm
+                  action={deletePositionAction}
+                  confirm={`Izbrišem »${position.name}«? Predloge in ocene zanj se pobrišejo.`}
+                >
+                  <input type="hidden" name="id" value={position.id} />
+                  <button
+                    type="submit"
+                    aria-label={`Izbriši ${position.name}`}
+                    className="text-danger"
+                  >
+                    ✕
+                  </button>
+                </ActionForm>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <ActionForm action={createPositionAction} className="mt-3 flex gap-2">
+          <input
+            name="name"
+            className="field flex-1"
+            placeholder="Novo delovno mesto"
+            required
+          />
+          <button type="submit" className="btn-secondary">
+            Dodaj
+          </button>
+        </ActionForm>
+      </section>
+
+      <section className="card">
+        <h2 className="font-semibold">Predloge izmen</h2>
+        <p className="mt-1 text-sm text-muted">
+          Prednastavljene ure po dnevih. Iz njih se sestavi samodejni urnik —
+          gumb je v zavihku <span className="text-foreground">Urnik</span>.
+        </p>
+
+        {positions.length === 0 ? (
+          <p className="mt-3 text-sm text-warning">
+            Najprej dodaj delovna mesta.
+          </p>
+        ) : (
+          <ActionForm
+            action={saveShiftTemplateAction}
+            className="mt-3 flex flex-col gap-3"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label" htmlFor="tpl-weekday">
+                  Dan
+                </label>
+                <select id="tpl-weekday" name="weekday" className="field" defaultValue={5}>
+                  {WEEKDAYS.map((weekday) => (
+                    <option key={weekday} value={weekday}>
+                      {WEEKDAY_LABELS[weekday]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label" htmlFor="tpl-position">
+                  Delovno mesto
+                </label>
+                <select id="tpl-position" name="positionId" className="field" required>
+                  {positions.map((position) => (
+                    <option key={position.id} value={position.id}>
+                      {position.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label" htmlFor="tpl-start">
+                  Začetek
+                </label>
+                <input
+                  id="tpl-start"
+                  name="startTime"
+                  type="time"
+                  className="field"
+                  defaultValue="16:00"
+                  required
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="tpl-end">
+                  Konec
+                </label>
+                <input
+                  id="tpl-end"
+                  name="endTime"
+                  type="time"
+                  className="field"
+                  defaultValue="23:00"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="label" htmlFor="tpl-people">
+                  Ljudi
+                </label>
+                <input
+                  id="tpl-people"
+                  name="peopleNeeded"
+                  type="number"
+                  min={1}
+                  max={20}
+                  className="field"
+                  defaultValue={1}
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="tpl-min">
+                  Najniž. ocena
+                </label>
+                <input
+                  id="tpl-min"
+                  name="minLevel"
+                  type="number"
+                  min={0}
+                  max={5}
+                  className="field"
+                  defaultValue={1}
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="tpl-lead">
+                  Vsaj eden z oceno
+                </label>
+                <input
+                  id="tpl-lead"
+                  name="leadLevel"
+                  type="number"
+                  min={1}
+                  max={5}
+                  className="field"
+                  placeholder="npr. 4"
+                />
+              </div>
+            </div>
+
+            <button type="submit" className="btn-primary">
+              Dodaj predlogo
+            </button>
+          </ActionForm>
+        )}
+
+        {templates.length > 0 ? (
+          <ul className="mt-4 flex flex-col gap-2">
+            {templates.map((template) => (
+              <li
+                key={template.id}
+                className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2 text-sm"
+              >
+                <span className="min-w-0">
+                  <span className="font-medium">
+                    {WEEKDAY_LABELS[template.weekday]}
+                  </span>{" "}
+                  · {template.position.name}
+                  <span className="block text-xs text-muted">
+                    {template.startTime}–{template.endTime} ·{" "}
+                    {plural(template.peopleNeeded, [
+                      "oseba",
+                      "osebi",
+                      "osebe",
+                      "oseb",
+                    ])}
+                    {" · ocena ≥ "}
+                    {template.minLevel}
+                    {template.leadLevel
+                      ? ` · vsaj eden ≥ ${template.leadLevel}`
+                      : ""}
+                  </span>
+                </span>
+                <ActionForm
+                  action={deleteShiftTemplateAction}
+                  confirm="Izbrišem predlogo?"
+                >
+                  <input type="hidden" name="id" value={template.id} />
+                  <button type="submit" className="btn-danger px-2 py-1 text-xs">
+                    ✕
+                  </button>
+                </ActionForm>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
       <section className="card">
         <h2 className="font-semibold">Dodatki na urno postavko</h2>
         <p className="mt-1 text-sm text-muted">

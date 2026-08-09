@@ -21,6 +21,8 @@ model Employee {
   pinHash    String
   /// Neobvezna bruto urna postavka, uporabljena samo v izvozu.
   hourlyRate Float?
+  /// Želeno število ur na teden; upošteva ga samodejno sestavljanje urnika.
+  weeklyHoursTarget Float?
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -31,6 +33,7 @@ model Employee {
   editedEntries TimeEntry[] @relation("EntryEditedBy")
 
   availability    Availability[] @relation("AvailabilityEmployee")
+  skills          EmployeeSkill[] @relation("SkillEmployee")
   absences        Absence[]    @relation("AbsenceEmployee")
   decidedAbsences Absence[]    @relation("AbsenceDecidedBy")
   offeredShifts   ShiftOffer[] @relation("OfferOfferedBy")
@@ -47,8 +50,11 @@ model Shift {
   employee   Employee @relation("ShiftEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
   start      DateTime
   end        DateTime
-  /// Delovno mesto: šank, kuhinja, strežba, bazen ...
+  /// Delovno mesto kot besedilo (ostane zapisano tudi, če se šifrant spremeni).
   position   String?
+  /// Povezava na šifrant delovnih mest, kadar je izmena z njega.
+  positionId String?
+  positionRef Position? @relation("ShiftPosition", fields: [positionId], references: [id], onDelete: SetNull)
   note       String?
 
   createdById String?
@@ -96,6 +102,56 @@ model TimeEntry {
 
   @@index([employeeId, clockIn])
   @@index([clockIn])
+}
+
+/// Šifrant delovnih mest (šank, kuhinja, strežba, bazen …).
+model Position {
+  id        String  @id @default(cuid())
+  name      String  @unique
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+
+  skills    EmployeeSkill[] @relation("SkillPosition")
+  templates ShiftTemplate[] @relation("TemplatePosition")
+  shifts    Shift[]         @relation("ShiftPosition")
+
+  createdAt DateTime @default(now())
+}
+
+/// Kako dobro zaposleni pokriva posamezno delovno mesto: 0 = ne dela tega,
+/// 1 = začetnik … 5 = povsem samostojen.
+model EmployeeSkill {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation("SkillEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  positionId String
+  position   Position @relation("SkillPosition", fields: [positionId], references: [id], onDelete: Cascade)
+  level      Int      @default(0)
+
+  @@unique([employeeId, positionId])
+}
+
+/// Prednastavljena izmena za posamezen dan v tednu — podlaga za samodejno
+/// sestavljanje urnika.
+model ShiftTemplate {
+  id         String   @id @default(cuid())
+  /// 1 = ponedeljek … 7 = nedelja
+  weekday    Int
+  positionId String
+  position   Position @relation("TemplatePosition", fields: [positionId], references: [id], onDelete: Cascade)
+  startTime  String
+  endTime    String
+  /// Koliko ljudi je za to izmeno potrebnih.
+  peopleNeeded Int @default(1)
+  /// Najnižja ocena, ki jo mora imeti razporejeni za to delovno mesto.
+  minLevel     Int @default(1)
+  /// Če je nastavljeno, mora biti med razporejenimi vsaj eden s to oceno ali več.
+  leadLevel    Int?
+  active       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([weekday])
 }
 
 /// Tedenska razpoložljivost zaposlenega — okvir, ki ga vodja upošteva pri urniku.

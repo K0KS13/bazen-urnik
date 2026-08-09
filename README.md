@@ -58,6 +58,21 @@ Nameščanje iz trgovine z aplikacijami ni potrebno.
   razpoložljivost okvir, ne prepoved. Za konkretne dneve, ko koga ne bo, se
   uporabi **Odsotnosti**.
 
+**Samodejno sestavljanje urnika**
+
+- Vodstvo v **Nastavitve** določi delovna mesta (šank, kuhinja, strežba, bazen)
+  in **predloge izmen**: za vsak dan v tednu ure, koliko ljudi je potrebnih,
+  najnižjo oceno za to mesto in po želji zahtevo »vsaj eden z oceno ≥ N«.
+- Vsak zaposleni ima **oceno 0–5 po delovnem mestu** (0 = tega dela ne opravlja)
+  in neobvezen **cilj ur na teden**.
+- Gumb **Sestavi urnik iz predlog** v zavihku Urnik zapolni teden. Upošteva
+  razpoložljivost, odobrene odsotnosti, ocene, prekrivanja in cilje ur.
+- Prednost ima **pokritost izmen**: cilj ur je mehka omejitev — najprej so na
+  vrsti tisti, ki cilja še niso dosegli, in šele če bi mesto sicer ostalo
+  prazno, gre kdo čez cilj.
+- Obstoječih izmen ne spreminja in jih ne podvaja, zato je gumb varno pritisniti
+  večkrat. Mesta, ki jih ni bilo mogoče zapolniti, so izpisana poimensko.
+
 **Dodatki na urno postavko**
 
 - Dodatek za **dan v tednu** (npr. sobota in nedelja +1 €/h).
@@ -94,7 +109,7 @@ Nameščanje iz trgovine z aplikacijami ni potrebno.
 | --- | --- |
 | Zaposlen/a | prijava/odjava na uro, svoj urnik, svoje ure, oddaja in prevzem izmen, vloge za odsotnost, razpoložljivost, sprememba svojega PIN-a |
 | Vodja izmene | vse zgoraj + urejanje urnika za vse, popravki ur, potrjevanje odsotnosti in menjav, pregled razpoložljivosti ekipe, izvoz |
-| Vodstvo | vse zgoraj + dodajanje/urejanje zaposlenih, vloge, urne postavke, dodatki, nastavitve zamud, ponastavitev PIN-a, odločanje o vlogah vodij |
+| Vodstvo | vse zgoraj + dodajanje/urejanje zaposlenih, vloge, urne postavke, ocene po delovnih mestih, cilji ur, delovna mesta in predloge izmen, dodatki, nastavitve zamud, ponastavitev PIN-a, odločanje o vlogah vodij |
 
 ## Namestitev na telefon
 
@@ -189,6 +204,7 @@ src/
     approvals.ts     kdo sme odločati o kateri vlogi
     pay.ts           dodatki na urno postavko
     lateness.ts      izračun odbitka za zamudo
+    scheduler.ts     sestavljanje urnika (čista funkcija, brez baze)
     time.ts          računanje in izpis ur
 prisma/
   schema.prisma      podatkovni model

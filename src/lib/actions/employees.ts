@@ -61,8 +61,19 @@ export async function updateEmployeeAction(
   const role = String(formData.get("role") ?? "");
   const active = formData.get("active") === "on";
   const hourlyRateRaw = String(formData.get("hourlyRate") ?? "").replace(",", ".");
+  const targetRaw = String(formData.get("weeklyHoursTarget") ?? "").replace(",", ".");
 
   if (!isRole(role)) return { error: "Neveljavna vloga." };
+
+  const weeklyHoursTarget = targetRaw ? Number(targetRaw) : null;
+  if (
+    weeklyHoursTarget !== null &&
+    (!Number.isFinite(weeklyHoursTarget) ||
+      weeklyHoursTarget < 0 ||
+      weeklyHoursTarget > 80)
+  ) {
+    return { error: "Cilj ur mora biti med 0 in 80 na teden." };
+  }
 
   // Brez tega bi si vodstvo lahko po nesreči odvzelo dostop do te strani.
   if (id === admin.id && (role !== "admin" || !active)) {
@@ -76,11 +87,46 @@ export async function updateEmployeeAction(
 
   await prisma.employee.update({
     where: { id },
-    data: { role, active, hourlyRate },
+    data: { role, active, hourlyRate, weeklyHoursTarget },
   });
 
   revalidatePath("/zaposleni");
   return { ok: "Shranjeno." };
+}
+
+/** Ocene zaposlenega po delovnih mestih (0 = tega dela ne opravlja). */
+export async function saveSkillsAction(formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+
+  const employeeId = String(formData.get("employeeId") ?? "");
+  if (!employeeId) return { error: "Manjka zaposleni." };
+
+  const positions = await prisma.position.findMany({ select: { id: true } });
+
+  const rows = positions.map((position) => ({
+    positionId: position.id,
+    level: Number(formData.get(`level-${position.id}`) ?? 0),
+  }));
+
+  if (rows.some((row) => !Number.isInteger(row.level) || row.level < 0 || row.level > 5)) {
+    return { error: "Ocena mora biti med 0 in 5." };
+  }
+
+  await prisma.$transaction(
+    rows.map((row) =>
+      prisma.employeeSkill.upsert({
+        where: {
+          employeeId_positionId: { employeeId, positionId: row.positionId },
+        },
+        create: { employeeId, positionId: row.positionId, level: row.level },
+        update: { level: row.level },
+      }),
+    ),
+  );
+
+  revalidatePath("/zaposleni");
+  revalidatePath("/urnik");
+  return { ok: "Ocene shranjene." };
 }
 
 /** Vodstvo ponastavi PIN, kadar ga kdo pozabi. */

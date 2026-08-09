@@ -4,6 +4,7 @@ import {
   createEmployeeAction,
   deleteEmployeeAction,
   resetPinAction,
+  saveSkillsAction,
   updateEmployeeAction,
 } from "@/lib/actions/employees";
 import { formatEuro, plural } from "@/lib/format";
@@ -16,18 +17,26 @@ export const dynamic = "force-dynamic";
 export default async function EmployeesPage() {
   await requireAdmin();
 
-  const employees = await prisma.employee.findMany({
-    orderBy: [{ active: "desc" }, { firstName: "asc" }],
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      role: true,
-      active: true,
-      hourlyRate: true,
-      _count: { select: { timeEntries: true } },
-    },
-  });
+  const [employees, positions] = await Promise.all([
+    prisma.employee.findMany({
+      orderBy: [{ active: "desc" }, { firstName: "asc" }],
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        active: true,
+        hourlyRate: true,
+        weeklyHoursTarget: true,
+        skills: { select: { positionId: true, level: true } },
+        _count: { select: { timeEntries: true } },
+      },
+    }),
+    prisma.position.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -154,6 +163,20 @@ export default async function EmployeesPage() {
                     />
                   </div>
                 </div>
+                <div>
+                  <label className="label">Cilj ur na teden (neobvezno)</label>
+                  <input
+                    name="weeklyHoursTarget"
+                    inputMode="decimal"
+                    className="field"
+                    placeholder="npr. 20"
+                    defaultValue={
+                      employee.weeklyHoursTarget === null
+                        ? ""
+                        : String(employee.weeklyHoursTarget).replace(".", ",")
+                    }
+                  />
+                </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -167,6 +190,47 @@ export default async function EmployeesPage() {
                   Shrani
                 </button>
               </ActionForm>
+
+              {positions.length > 0 ? (
+                <ActionForm
+                  action={saveSkillsAction}
+                  className="mt-3 flex flex-col gap-2"
+                >
+                  <input type="hidden" name="employeeId" value={employee.id} />
+                  <p className="label">
+                    Ocene po delovnih mestih (0 = tega ne dela, 5 = povsem
+                    samostojen)
+                  </p>
+                  {positions.map((position) => {
+                    const level =
+                      employee.skills.find(
+                        (skill) => skill.positionId === position.id,
+                      )?.level ?? 0;
+                    return (
+                      <div
+                        key={position.id}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <span className="text-sm">{position.name}</span>
+                        <select
+                          name={`level-${position.id}`}
+                          defaultValue={level}
+                          className="field w-24 py-1.5 text-sm"
+                        >
+                          {[0, 1, 2, 3, 4, 5].map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+                  <button type="submit" className="btn-secondary">
+                    Shrani ocene
+                  </button>
+                </ActionForm>
+              ) : null}
 
               <ActionForm action={resetPinAction} className="mt-3 flex items-end gap-2">
                 <input type="hidden" name="id" value={employee.id} />

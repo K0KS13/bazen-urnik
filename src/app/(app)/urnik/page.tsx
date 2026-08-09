@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { Collapsible } from "@/components/collapsible";
 import { offerShiftAction } from "@/lib/actions/offers";
+import { generateWeekAction } from "@/lib/actions/scheduler";
 import {
   copyPreviousWeekAction,
   createShiftAction,
@@ -248,6 +249,25 @@ export default async function SchedulePage({
 
       {canManage ? (
         <>
+          <ActionForm
+            action={generateWeekAction}
+            className="card"
+            confirm="Sestavim urnik za ta teden iz predlog? Obstoječe izmene ostanejo."
+          >
+            <input
+              type="hidden"
+              name="weekStart"
+              value={toLocalDateValue(weekStart)}
+            />
+            <button type="submit" className="btn-primary w-full">
+              Sestavi urnik iz predlog
+            </button>
+            <p className="mt-2 text-xs text-muted">
+              Upošteva razpoložljivost, odsotnosti, ocene po delovnih mestih in
+              cilje ur. Obstoječih izmen ne spreminja.
+            </p>
+          </ActionForm>
+
           <ActionForm
             action={copyPreviousWeekAction}
             className="card"

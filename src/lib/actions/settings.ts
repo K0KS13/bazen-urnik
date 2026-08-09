@@ -131,6 +131,124 @@ export async function savePayRuleAction(
   return { error: "Neveljavna vrsta pravila." };
 }
 
+const DEFAULT_POSITIONS = ["Šank", "Kuhinja", "Strežba", "Bazen"];
+
+/** Ob prvem zagonu ponudimo običajna delovna mesta, da ni treba tipkati. */
+export async function addDefaultPositionsAction(): Promise<ActionState> {
+  await requireAdmin();
+
+  const existing = await prisma.position.count();
+  if (existing > 0) return { error: "Delovna mesta so že vpisana." };
+
+  await prisma.position.createMany({
+    data: DEFAULT_POSITIONS.map((name, index) => ({ name, sortOrder: index })),
+  });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/zaposleni");
+  return { ok: "Dodana privzeta delovna mesta." };
+}
+
+export async function createPositionAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Vpiši ime delovnega mesta." };
+
+  const existing = await prisma.position.findUnique({ where: { name } });
+  if (existing) return { error: "To delovno mesto že obstaja." };
+
+  const count = await prisma.position.count();
+  await prisma.position.create({ data: { name, sortOrder: count } });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/zaposleni");
+  return { ok: `Delovno mesto »${name}« dodano.` };
+}
+
+export async function deletePositionAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+
+  // Izmene, ki so že vpisane, obdržijo besedilno oznako delovnega mesta.
+  await prisma.position.delete({ where: { id } });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/zaposleni");
+  return { ok: "Delovno mesto izbrisano." };
+}
+
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export async function saveShiftTemplateAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const weekday = Number(formData.get("weekday") ?? 0);
+  const positionId = String(formData.get("positionId") ?? "");
+  const startTime = String(formData.get("startTime") ?? "");
+  const endTime = String(formData.get("endTime") ?? "");
+  const peopleNeeded = Number(formData.get("peopleNeeded") ?? 1);
+  const minLevel = Number(formData.get("minLevel") ?? 1);
+  const leadLevelRaw = String(formData.get("leadLevel") ?? "");
+
+  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 7) {
+    return { error: "Izberi dan v tednu." };
+  }
+  if (!positionId) return { error: "Izberi delovno mesto." };
+  if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) {
+    return { error: "Vpiši veljavni uri (npr. 16:00)." };
+  }
+  if (!Number.isInteger(peopleNeeded) || peopleNeeded < 1 || peopleNeeded > 20) {
+    return { error: "Število ljudi mora biti med 1 in 20." };
+  }
+  if (!Number.isInteger(minLevel) || minLevel < 0 || minLevel > 5) {
+    return { error: "Najnižja ocena mora biti med 0 in 5." };
+  }
+
+  const leadLevel = leadLevelRaw ? Number(leadLevelRaw) : null;
+  if (
+    leadLevel !== null &&
+    (!Number.isInteger(leadLevel) || leadLevel < 1 || leadLevel > 5)
+  ) {
+    return { error: "Ocena izkušenega mora biti med 1 in 5." };
+  }
+
+  await prisma.shiftTemplate.create({
+    data: {
+      weekday,
+      positionId,
+      startTime,
+      endTime,
+      peopleNeeded,
+      minLevel,
+      leadLevel,
+    },
+  });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/urnik");
+  return { ok: "Predloga izmene dodana." };
+}
+
+export async function deleteShiftTemplateAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+
+  await prisma.shiftTemplate.delete({ where: { id } });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/urnik");
+  return { ok: "Predloga izbrisana." };
+}
+
 export async function deletePayRuleAction(
   formData: FormData,
 ): Promise<ActionState> {
