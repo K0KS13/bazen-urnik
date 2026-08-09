@@ -5,6 +5,7 @@ import {
   deleteEmployeeAction,
   resetPinAction,
   saveSkillsAction,
+  saveSkillsMatrixAction,
   updateEmployeeAction,
 } from "@/lib/actions/employees";
 import { formatEuro, plural } from "@/lib/format";
@@ -105,6 +106,86 @@ export default async function EmployeesPage() {
           </button>
         </ActionForm>
       </Collapsible>
+
+      {positions.length > 0 ? (
+        <Collapsible
+          summary="Ocene celotne ekipe"
+          defaultOpen={employees.every((employee) => employee.skills.length === 0)}
+        >
+          <p className="mt-1 text-sm text-muted">
+            0 = tega dela ne opravlja, 5 = povsem samostojen. Brez ocen samodejni
+            urnik nikogar ne razporedi.
+          </p>
+
+          <ActionForm
+            resetKey={employees
+              .flatMap((employee) =>
+                employee.skills.map(
+                  (skill) => `${employee.id}:${skill.positionId}:${skill.level}`,
+                ),
+              )
+              .sort()
+              .join("|")}
+            action={saveSkillsMatrixAction}
+            className="mt-3 flex flex-col gap-3"
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted">
+                    <th className="pb-2 font-medium">Zaposlen/a</th>
+                    {positions.map((position) => (
+                      <th
+                        key={position.id}
+                        className="pb-2 text-center font-medium whitespace-nowrap"
+                      >
+                        {position.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees
+                    .filter((employee) => employee.active)
+                    .map((employee) => (
+                      <tr key={employee.id} className="border-t border-border/50">
+                        <td className="py-1.5 pr-2 whitespace-nowrap">
+                          {employee.firstName} {employee.lastName}
+                        </td>
+                        {positions.map((position) => {
+                          const level =
+                            employee.skills.find(
+                              (skill) => skill.positionId === position.id,
+                            )?.level ?? 0;
+                          return (
+                            <td key={position.id} className="px-1 py-1.5">
+                              <select
+                                name={`level-${employee.id}-${position.id}`}
+                                defaultValue={level}
+                                aria-label={`${employee.firstName} — ${position.name}`}
+                                className="field w-full px-2 py-1 text-center text-sm"
+                              >
+                                {[0, 1, 2, 3, 4, 5].map((value) => (
+                                  <option key={value} value={value}>
+                                    {value}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            <button type="submit" className="btn-primary">
+              Shrani ocene ekipe
+            </button>
+          </ActionForm>
+        </Collapsible>
+      ) : null}
 
       <ul className="flex flex-col gap-2">
         {employees.map((employee) => (

@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { plural } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { isRole } from "@/lib/roles";
 import { requireAdmin, requireUser } from "@/lib/session";
@@ -135,6 +136,79 @@ export async function saveSkillsAction(formData: FormData): Promise<ActionState>
 }
 
 /** Vodstvo ponastavi PIN, kadar ga kdo pozabi. */
+/**
+ * Ocene za celo ekipo naenkrat.
+ *
+ * Vnos po posameznem zaposlenem je pri dvajsetih ljudeh in treh delovnih
+ * mestih šestdeset odpiranj obrazca, zato samodejni urnik v praksi ostane brez
+ * podatkov. Ta akcija sprejme celo tabelo in zapiše samo tisto, kar se je
+ * dejansko spremenilo.
+ */
+export async function saveSkillsMatrixAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const [employees, positions, existing] = await Promise.all([
+    prisma.employee.findMany({ where: { active: true }, select: { id: true } }),
+    prisma.position.findMany({ where: { active: true }, select: { id: true } }),
+    prisma.employeeSkill.findMany({
+      select: { employeeId: true, positionId: true, level: true },
+    }),
+  ]);
+
+  if (positions.length === 0) return { error: "Najprej dodaj delovna mesta." };
+
+  const current = new Map(
+    existing.map((row) => [`${row.employeeId}:${row.positionId}`, row.level]),
+  );
+
+  const changed: Array<{ employeeId: string; positionId: string; level: number }> = [];
+
+  for (const employee of employees) {
+    for (const position of positions) {
+      const raw = formData.get(`level-${employee.id}-${position.id}`);
+      if (raw === null) continue;
+
+      const level = Number(raw);
+      if (!Number.isInteger(level) || level < 0 || level > 5) {
+        return { error: "Ocena mora biti med 0 in 5." };
+      }
+      if ((current.get(`${employee.id}:${position.id}`) ?? 0) === level) continue;
+
+      changed.push({ employeeId: employee.id, positionId: position.id, level });
+    }
+  }
+
+  if (changed.length === 0) return { ok: "Ni sprememb." };
+
+  await prisma.$transaction(
+    changed.map((row) =>
+      prisma.employeeSkill.upsert({
+        where: {
+          employeeId_positionId: {
+            employeeId: row.employeeId,
+            positionId: row.positionId,
+          },
+        },
+        create: row,
+        update: { level: row.level },
+      }),
+    ),
+  );
+
+  revalidatePath("/zaposleni");
+  revalidatePath("/urnik");
+  return {
+    ok: `Shranjeno: ${plural(changed.length, [
+      "sprememba",
+      "spremembi",
+      "spremembe",
+      "sprememb",
+    ])}.`,
+  };
+}
+
 export async function resetPinAction(formData: FormData): Promise<ActionState> {
   await requireAdmin();
 
