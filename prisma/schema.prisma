@@ -52,6 +52,8 @@ model Shift {
   end        DateTime
   /// Delovno mesto kot besedilo (ostane zapisano tudi, če se šifrant spremeni).
   position   String?
+  /// "dopoldan" | "celodnevna" | "popoldan" — glej src/lib/parts-of-day.ts
+  partOfDay  String?
   /// Povezava na šifrant delovnih mest, kadar je izmena z njega.
   positionId String?
   positionRef Position? @relation("ShiftPosition", fields: [positionId], references: [id], onDelete: SetNull)
@@ -137,6 +139,8 @@ model ShiftTemplate {
   id         String   @id @default(cuid())
   /// 1 = ponedeljek … 7 = nedelja
   weekday    Int
+  /// "dopoldan" | "celodnevna" | "popoldan"
+  partOfDay  String   @default("popoldan")
   positionId String
   position   Position @relation("TemplatePosition", fields: [positionId], references: [id], onDelete: Cascade)
   startTime  String
@@ -206,6 +210,14 @@ model Settings {
   lateBlockMinutes         Int     @default(15)
   /// Koliko minut dela se odbije za vsak začeti blok zamude.
   latePenaltyMinutesPerBlock Int   @default(60)
+
+  /// Privzete ure posameznega dela dneva; z njimi se prednapolni vpis izmene.
+  morningStart String @default("08:00")
+  morningEnd   String @default("16:00")
+  alldayStart  String @default("10:00")
+  alldayEnd    String @default("22:00")
+  eveningStart String @default("16:00")
+  eveningEnd   String @default("00:00")
 
   updatedAt DateTime @updatedAt
 }

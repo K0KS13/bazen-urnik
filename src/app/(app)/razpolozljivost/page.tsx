@@ -53,7 +53,14 @@ export default async function AvailabilityPage() {
           oddaj raje vlogo pod <span className="text-foreground">Odsotnosti</span>.
         </p>
 
-        <ActionForm action={saveAvailabilityAction} className="mt-3 flex flex-col gap-3">
+        <ActionForm
+          resetKey={mine
+            .map((row) => `${row.weekday}:${row.status}:${row.fromTime}:${row.toTime}`)
+            .sort()
+            .join("|")}
+          action={saveAvailabilityAction}
+          className="mt-3 flex flex-col gap-3"
+        >
           {WEEKDAYS.map((weekday) => {
             const row = byWeekday.get(weekday);
             const current = statusOf(row?.status ?? "yes");

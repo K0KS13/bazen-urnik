@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { Collapsible } from "@/components/collapsible";
+import { PartOfDayTimes } from "@/components/part-of-day-times";
 import { offerShiftAction } from "@/lib/actions/offers";
 import { generateWeekAction } from "@/lib/actions/scheduler";
 import {
@@ -8,10 +9,19 @@ import {
   createShiftAction,
   deleteShiftAction,
 } from "@/lib/actions/shifts";
+import {
+  defaultTimes,
+  PART_CLASS,
+  PART_LABELS,
+  PARTS_OF_DAY,
+  partOfShift,
+  type PartOfDay,
+} from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
 import { ABSENCE_TYPE_LABELS, type AbsenceType } from "@/lib/requests";
 import { canManageSchedule } from "@/lib/roles";
 import { requireUser } from "@/lib/session";
+import { getSettings } from "@/lib/settings";
 import {
   addDays,
   formatTime,
@@ -55,7 +65,7 @@ export default async function SchedulePage({
   const weekEnd = addDays(weekStart, 7);
   const days = weekDays(weekStart);
 
-  const [shifts, absences, employees] = await Promise.all([
+  const [shifts, absences, employees, positions, settings] = await Promise.all([
     prisma.shift.findMany({
       where: { start: { gte: weekStart, lt: weekEnd } },
       orderBy: { start: "asc" },
@@ -79,6 +89,13 @@ export default async function SchedulePage({
           select: { id: true, firstName: true, lastName: true },
         })
       : Promise.resolve([]),
+    canManage
+      ? prisma.position.findMany({
+          where: { active: true },
+          orderBy: { sortOrder: "asc" },
+        })
+      : Promise.resolve([]),
+    getSettings(),
   ]);
 
   // Zaposleni brez pravic vidi razpored celotne ekipe, odsotnosti pa le svoje —
@@ -89,6 +106,10 @@ export default async function SchedulePage({
 
   const previousWeek = toLocalDateValue(addDays(weekStart, -7));
   const nextWeek = toLocalDateValue(addDays(weekStart, 7));
+
+  const partDefaults = Object.fromEntries(
+    PARTS_OF_DAY.map((part) => [part, defaultTimes(part, settings)]),
+  ) as Record<PartOfDay, { start: string; end: string }>;
 
   return (
     <div className="flex flex-col gap-4">
@@ -143,91 +164,115 @@ export default async function SchedulePage({
                 <p className="text-sm text-muted">—</p>
               ) : null}
 
-              {dayShifts.length > 0 ? (
-                <ul className="flex flex-col gap-2">
-                  {dayShifts.map((shift) => {
-                    const isMine = shift.employeeId === user.id;
-                    const offerActive =
-                      shift.offer?.status === "open" ||
-                      shift.offer?.status === "claimed";
+              {PARTS_OF_DAY.map((part) => {
+                const partShifts = dayShifts.filter(
+                  (shift) => partOfShift(shift) === part,
+                );
+                if (partShifts.length === 0) return null;
 
-                    return (
-                      <li
-                        key={shift.id}
-                        className={`rounded-xl px-3 py-2 ${
-                          isMine ? "bg-accent/15 ring-1 ring-accent/40" : "bg-surface-2"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">
-                              {shift.employee.firstName} {shift.employee.lastName}
-                            </p>
-                            {shift.position || shift.note ? (
-                              <p className="truncate text-xs text-muted">
-                                {[shift.position, shift.note]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </p>
-                            ) : null}
-                          </div>
-                          <span className="shrink-0 font-mono text-sm tabular-nums">
-                            {formatTime(shift.start)}–{formatTime(shift.end)}
-                          </span>
-                          {canManage ? (
-                            <ActionForm
-                              action={deleteShiftAction}
-                              confirm="Izbrišem to izmeno?"
-                            >
-                              <input type="hidden" name="id" value={shift.id} />
-                              <button
-                                type="submit"
-                                aria-label="Izbriši izmeno"
-                                className="btn-danger px-2 py-1 text-xs"
-                              >
-                                ✕
-                              </button>
-                            </ActionForm>
-                          ) : null}
-                        </div>
+                return (
+                  <div key={part} className="mb-3 last:mb-0">
+                    <p
+                      className={`mb-1.5 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${PART_CLASS[part]}`}
+                    >
+                      {PART_LABELS[part]}
+                    </p>
 
-                        {offerActive ? (
-                          <Link
-                            href="/menjave"
-                            className="mt-1 inline-block rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning"
+                    <ul className="flex flex-col gap-1.5">
+                      {partShifts.map((shift) => {
+                        const isMine = shift.employeeId === user.id;
+                        const offerActive =
+                          shift.offer?.status === "open" ||
+                          shift.offer?.status === "claimed";
+
+                        return (
+                          <li
+                            key={shift.id}
+                            className={`rounded-xl px-3 py-2 ${
+                              isMine
+                                ? "bg-accent/15 ring-1 ring-accent/40"
+                                : "bg-surface-2"
+                            }`}
                           >
-                            {shift.offer?.status === "open"
-                              ? "Oddana — prosta za prevzem"
-                              : "Prevzeta, čaka potrditev"}
-                          </Link>
-                        ) : null}
+                            <div className="flex items-center gap-2">
+                              <span className="shrink-0 font-mono text-sm tabular-nums">
+                                {formatTime(shift.start)}–{formatTime(shift.end)}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                                {shift.employee.firstName} {shift.employee.lastName}
+                              </span>
+                              {shift.position ? (
+                                <span className="shrink-0 rounded-full bg-background/60 px-2 py-0.5 text-xs text-muted">
+                                  {shift.position}
+                                </span>
+                              ) : null}
+                              {canManage ? (
+                                <ActionForm
+                                  action={deleteShiftAction}
+                                  confirm="Izbrišem to izmeno?"
+                                >
+                                  <input type="hidden" name="id" value={shift.id} />
+                                  <button
+                                    type="submit"
+                                    aria-label="Izbriši izmeno"
+                                    className="btn-danger px-2 py-1 text-xs"
+                                  >
+                                    ✕
+                                  </button>
+                                </ActionForm>
+                              ) : null}
+                            </div>
 
-                        {isMine && !offerActive && shift.start > now ? (
-                          <details className="mt-1">
-                            <summary className="cursor-pointer text-xs text-muted">
-                              Ne morem — oddaj izmeno
-                            </summary>
-                            <ActionForm
-                              action={offerShiftAction}
-                              className="mt-2 flex gap-2"
-                            >
-                              <input type="hidden" name="shiftId" value={shift.id} />
-                              <input
-                                name="note"
-                                className="field flex-1 text-sm"
-                                placeholder="Sporočilo (neobvezno)"
-                              />
-                              <button type="submit" className="btn-secondary text-sm">
-                                Oddaj
-                              </button>
-                            </ActionForm>
-                          </details>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
+                            {shift.note ? (
+                              <p className="mt-1 text-xs text-muted">{shift.note}</p>
+                            ) : null}
+
+                            {offerActive ? (
+                              <Link
+                                href="/menjave"
+                                className="mt-1 inline-block rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning"
+                              >
+                                {shift.offer?.status === "open"
+                                  ? "Oddana — prosta za prevzem"
+                                  : "Prevzeta, čaka potrditev"}
+                              </Link>
+                            ) : null}
+
+                            {isMine && !offerActive && shift.start > now ? (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-xs text-muted">
+                                  Ne morem — oddaj izmeno
+                                </summary>
+                                <ActionForm
+                                  action={offerShiftAction}
+                                  className="mt-2 flex gap-2"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="shiftId"
+                                    value={shift.id}
+                                  />
+                                  <input
+                                    name="note"
+                                    className="field flex-1 text-sm"
+                                    placeholder="Sporočilo (neobvezno)"
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="btn-secondary text-sm"
+                                  >
+                                    Oddaj
+                                  </button>
+                                </ActionForm>
+                              </details>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
 
               {dayAbsences.length > 0 ? (
                 <ul className="mt-2 flex flex-wrap gap-1.5">
@@ -303,6 +348,26 @@ export default async function SchedulePage({
               </div>
 
               <div>
+                <label className="label" htmlFor="positionId">
+                  Delovno mesto
+                </label>
+                {positions.length === 0 ? (
+                  <p className="text-sm text-warning">
+                    Delovnih mest še ni — dodaj jih v Nastavitve.
+                  </p>
+                ) : (
+                  <select id="positionId" name="positionId" className="field">
+                    <option value="">— brez —</option>
+                    {positions.map((position) => (
+                      <option key={position.id} value={position.id}>
+                        {position.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div>
                 <label className="label" htmlFor="date">
                   Datum
                 </label>
@@ -316,46 +381,7 @@ export default async function SchedulePage({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label" htmlFor="startTime">
-                    Začetek
-                  </label>
-                  <input
-                    id="startTime"
-                    name="startTime"
-                    type="time"
-                    className="field"
-                    defaultValue="16:00"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="label" htmlFor="endTime">
-                    Konec
-                  </label>
-                  <input
-                    id="endTime"
-                    name="endTime"
-                    type="time"
-                    className="field"
-                    defaultValue="23:00"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="label" htmlFor="position">
-                  Delovno mesto (neobvezno)
-                </label>
-                <input
-                  id="position"
-                  name="position"
-                  className="field"
-                  placeholder="šank, kuhinja, strežba, bazen …"
-                />
-              </div>
+              <PartOfDayTimes defaults={partDefaults} />
 
               <div>
                 <label className="label" htmlFor="note">

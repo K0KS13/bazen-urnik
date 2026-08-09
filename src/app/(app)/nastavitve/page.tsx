@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/action-form";
+import { PartOfDayTimes } from "@/components/part-of-day-times";
 import {
   addDefaultPositionsAction,
   createPositionAction,
@@ -8,9 +9,17 @@ import {
   savePayRuleAction,
   saveShiftTemplateAction,
   updateLateSettingsAction,
+  updateShiftHoursAction,
 } from "@/lib/actions/settings";
 import { WEEKDAY_LABELS, WEEKDAYS } from "@/lib/availability";
 import { formatEuro, plural } from "@/lib/format";
+import {
+  defaultTimes,
+  PART_CLASS,
+  PART_LABELS,
+  PARTS_OF_DAY,
+  type PartOfDay,
+} from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
@@ -35,6 +44,10 @@ export default async function SettingsPage() {
 
   const weekdayRules = rules.filter((rule) => rule.scope === "weekday");
   const dateRules = rules.filter((rule) => rule.scope === "date");
+
+  const partDefaults = Object.fromEntries(
+    PARTS_OF_DAY.map((part) => [part, defaultTimes(part, settings)]),
+  ) as Record<PartOfDay, { start: string; end: string }>;
 
   // Primer za trenutne nastavitve, da je pravilo takoj razumljivo.
   const example = [1, 2, 3].map((blocks) => {
@@ -100,6 +113,55 @@ export default async function SettingsPage() {
       </section>
 
       <section className="card">
+        <h2 className="font-semibold">Privzete ure izmen</h2>
+        <p className="mt-1 text-sm text-muted">
+          Izhodišče za vpis izmene in za predloge — ure ostanejo popravljive.
+          Konec pred začetkom pomeni čez polnoč (npr. 16:00–00:00).
+        </p>
+
+        <ActionForm
+          resetKey={settings.updatedAt.toISOString()}
+          action={updateShiftHoursAction}
+          className="mt-3 flex flex-col gap-3"
+        >
+          {(
+            [
+              ["dopoldan", "morningStart", "morningEnd"],
+              ["celodnevna", "alldayStart", "alldayEnd"],
+              ["popoldan", "eveningStart", "eveningEnd"],
+            ] as const
+          ).map(([part, startField, endField]) => (
+            <div key={part} className="flex items-center gap-2">
+              <span
+                className={`w-28 shrink-0 rounded-full px-2 py-1 text-center text-xs font-semibold ring-1 ${PART_CLASS[part]}`}
+              >
+                {PART_LABELS[part]}
+              </span>
+              <input
+                name={startField}
+                type="time"
+                className="field flex-1 py-1.5 text-sm"
+                defaultValue={settings[startField]}
+                required
+              />
+              <span className="text-xs text-muted">do</span>
+              <input
+                name={endField}
+                type="time"
+                className="field flex-1 py-1.5 text-sm"
+                defaultValue={settings[endField]}
+                required
+              />
+            </div>
+          ))}
+
+          <button type="submit" className="btn-primary">
+            Shrani privzete ure
+          </button>
+        </ActionForm>
+      </section>
+
+      <section className="card">
         <h2 className="font-semibold">Predloge izmen</h2>
         <p className="mt-1 text-sm text-muted">
           Prednastavljene ure po dnevih. Iz njih se sestavi samodejni urnik —
@@ -142,34 +204,7 @@ export default async function SettingsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label" htmlFor="tpl-start">
-                  Začetek
-                </label>
-                <input
-                  id="tpl-start"
-                  name="startTime"
-                  type="time"
-                  className="field"
-                  defaultValue="16:00"
-                  required
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="tpl-end">
-                  Konec
-                </label>
-                <input
-                  id="tpl-end"
-                  name="endTime"
-                  type="time"
-                  className="field"
-                  defaultValue="23:00"
-                  required
-                />
-              </div>
-            </div>
+            <PartOfDayTimes defaults={partDefaults} />
 
             <div className="grid grid-cols-3 gap-3">
               <div>
@@ -234,6 +269,14 @@ export default async function SettingsPage() {
                     {WEEKDAY_LABELS[template.weekday]}
                   </span>{" "}
                   · {template.position.name}
+                  <span
+                    className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${
+                      PART_CLASS[template.partOfDay as PartOfDay] ?? ""
+                    }`}
+                  >
+                    {PART_LABELS[template.partOfDay as PartOfDay] ??
+                      template.partOfDay}
+                  </span>
                   <span className="block text-xs text-muted">
                     {template.startTime}–{template.endTime} ·{" "}
                     {plural(template.peopleNeeded, [
@@ -387,6 +430,7 @@ export default async function SettingsPage() {
         </p>
 
         <ActionForm
+          resetKey={settings.updatedAt.toISOString()}
           action={updateLateSettingsAction}
           className="mt-4 flex flex-col gap-3"
         >

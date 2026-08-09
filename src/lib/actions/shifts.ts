@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { plural } from "@/lib/format";
+import { derivePartOfDay, isPartOfDay } from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
 import { requireScheduleManager } from "@/lib/session";
 import { addDays, isoWeekday, parseLocalDate, startOfWeek } from "@/lib/time";
@@ -31,8 +32,20 @@ export async function createShiftAction(formData: FormData): Promise<ActionState
   const date = String(formData.get("date") ?? "");
   const startTime = String(formData.get("startTime") ?? "");
   const endTime = String(formData.get("endTime") ?? "");
-  const position = String(formData.get("position") ?? "").trim();
+  const positionId = String(formData.get("positionId") ?? "");
+  const partOfDayRaw = String(formData.get("partOfDay") ?? "");
   const note = String(formData.get("note") ?? "").trim();
+
+  const partOfDay = isPartOfDay(partOfDayRaw) ? partOfDayRaw : null;
+
+  // Ime delovnega mesta zapišemo tudi kot besedilo, da izmena ostane berljiva,
+  // če se šifrant pozneje spremeni.
+  const positionRecord = positionId
+    ? await prisma.position.findUnique({
+        where: { id: positionId },
+        select: { id: true, name: true },
+      })
+    : null;
 
   if (!employeeId) return { error: "Izberi zaposlenega." };
   if (!date || !startTime || !endTime) return { error: "Izpolni datum in uri." };
@@ -63,7 +76,9 @@ export async function createShiftAction(formData: FormData): Promise<ActionState
       employeeId,
       start,
       end,
-      position: position || null,
+      partOfDay: partOfDay ?? derivePartOfDay(start, end),
+      position: positionRecord?.name ?? null,
+      positionId: positionRecord?.id ?? null,
       note: note || null,
       createdById: manager.id,
     },
@@ -140,7 +155,9 @@ export async function copyPreviousWeekAction(
         employeeId: shift.employeeId,
         start,
         end,
+        partOfDay: shift.partOfDay,
         position: shift.position,
+        positionId: shift.positionId,
         note: shift.note,
         createdById: manager.id,
       },

@@ -132,6 +132,7 @@ export async function generateWeekAction(
         employeeId,
         start: slot.start,
         end: slot.end,
+        partOfDay: slot.partOfDay,
         position: slot.positionName,
         positionId: slot.positionId,
         createdById: manager.id,

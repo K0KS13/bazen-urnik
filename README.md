@@ -27,6 +27,11 @@ Nameščanje iz trgovine z aplikacijami ni potrebno.
 
 - Teden po dnevih; današnji dan je poudarjen. Zaposleni vidi razpored celotne
   ekipe, ureja pa ga le vodja. Izmene čez polnoč (20:00–02:00) so podprte.
+- Vsak dan je razdeljen na **dopoldan / čez cel dan / popoldan**, znotraj vsakega
+  pa je izpisano `ura · ime · delovno mesto` — torej se vidi tudi, **kje** kdo
+  dela, ne le kdaj.
+- **Privzete ure** za vsak del dneva se nastavijo enkrat (Nastavitve) in
+  prednapolnijo vpis izmene; ure ostanejo popravljive.
 - **Kopiraj urnik prejšnjega tedna** — en klik prepiše ves teden. Preskoči
   tiste z odobreno odsotnostjo in izmene, ki že obstajajo, zato dvojni klik
   urnika ne podvoji.
@@ -61,8 +66,9 @@ Nameščanje iz trgovine z aplikacijami ni potrebno.
 **Samodejno sestavljanje urnika**
 
 - Vodstvo v **Nastavitve** določi delovna mesta (šank, kuhinja, strežba, bazen)
-  in **predloge izmen**: za vsak dan v tednu ure, koliko ljudi je potrebnih,
-  najnižjo oceno za to mesto in po želji zahtevo »vsaj eden z oceno ≥ N«.
+  in **predloge izmen**: za vsak dan v tednu del dneva in ure, koliko ljudi je
+  potrebnih, najnižjo oceno za to mesto in po želji zahtevo »vsaj eden z
+  oceno ≥ N«.
 - Vsak zaposleni ima **oceno 0–5 po delovnem mestu** (0 = tega dela ne opravlja)
   in neobvezen **cilj ur na teden**.
 - Gumb **Sestavi urnik iz predlog** v zavihku Urnik zapolni teden. Upošteva
@@ -202,6 +208,7 @@ src/
     actions/         strežniške akcije (pisanje v bazo)
     session.ts       seja in preverjanje pravic
     approvals.ts     kdo sme odločati o kateri vlogi
+    parts-of-day.ts  deli dneva in njihove privzete ure
     pay.ts           dodatki na urno postavko
     lateness.ts      izračun odbitka za zamudo
     scheduler.ts     sestavljanje urnika (čista funkcija, brez baze)

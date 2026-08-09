@@ -12,12 +12,24 @@ export function ActionForm({
   action,
   className,
   confirm,
+  resetKey,
   children,
 }: {
   action: (formData: FormData) => Promise<ActionState>;
   className?: string;
   /** Če je podano, se pred oddajo prikaže potrditveno okno s tem besedilom. */
   confirm?: string;
+  /**
+   * Podpis shranjenega stanja, ki ga obrazec prikazuje (npr. datum zadnje
+   * spremembe ali seznam ocen). Ko se spremeni, se polja ponovno priklopijo in
+   * prevzamejo novo shranjeno vrednost.
+   *
+   * Brez tega React po oddaji obrazca izbirnikom in potrditvenim poljem povrne
+   * vrednost, ki so jo imela ob priklopu, zato je videti, kot da se shranjeni
+   * podatki niso spremenili. Ključ je na `fieldset`, ne na obrazcu, da pri tem
+   * ne izgubimo izpisanega odgovora strežnika.
+   */
+  resetKey?: string;
   children: ReactNode;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
@@ -33,7 +45,7 @@ export function ActionForm({
         if (confirm && !window.confirm(confirm)) event.preventDefault();
       }}
     >
-      <fieldset disabled={pending} className="contents">
+      <fieldset key={resetKey} disabled={pending} className="contents">
         {children}
       </fieldset>
 

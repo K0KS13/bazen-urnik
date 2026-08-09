@@ -119,6 +119,7 @@ export default async function HoursPage({
                       Popravi
                     </summary>
                     <ActionForm
+                      resetKey={entry.updatedAt.toISOString()}
                       action={updateTimeEntryAction}
                       className="mt-2 flex flex-col gap-2"
                     >

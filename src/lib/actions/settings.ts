@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isPartOfDay } from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 import { parseLocalDate } from "@/lib/time";
 import type { ActionState } from "@/lib/actions/time";
+
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function refresh(): void {
   revalidatePath("/nastavitve");
@@ -131,6 +134,41 @@ export async function savePayRuleAction(
   return { error: "Neveljavna vrsta pravila." };
 }
 
+/** Privzete ure za dopoldansko, celodnevno in popoldansko izmeno. */
+export async function updateShiftHoursAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const fields = [
+    "morningStart",
+    "morningEnd",
+    "alldayStart",
+    "alldayEnd",
+    "eveningStart",
+    "eveningEnd",
+  ] as const;
+
+  const values = {} as Record<(typeof fields)[number], string>;
+  for (const field of fields) {
+    const value = String(formData.get(field) ?? "");
+    if (!TIME_PATTERN.test(value)) {
+      return { error: "Vpiši veljavne ure (npr. 16:00)." };
+    }
+    values[field] = value;
+  }
+
+  await prisma.settings.upsert({
+    where: { id: "default" },
+    create: { id: "default", ...values },
+    update: values,
+  });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/urnik");
+  return { ok: "Privzete ure shranjene." };
+}
+
 const DEFAULT_POSITIONS = ["Šank", "Kuhinja", "Strežba", "Bazen"];
 
 /** Ob prvem zagonu ponudimo običajna delovna mesta, da ni treba tipkati. */
@@ -182,8 +220,6 @@ export async function deletePositionAction(
   return { ok: "Delovno mesto izbrisano." };
 }
 
-const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
-
 export async function saveShiftTemplateAction(
   formData: FormData,
 ): Promise<ActionState> {
@@ -191,6 +227,7 @@ export async function saveShiftTemplateAction(
 
   const weekday = Number(formData.get("weekday") ?? 0);
   const positionId = String(formData.get("positionId") ?? "");
+  const partOfDay = String(formData.get("partOfDay") ?? "");
   const startTime = String(formData.get("startTime") ?? "");
   const endTime = String(formData.get("endTime") ?? "");
   const peopleNeeded = Number(formData.get("peopleNeeded") ?? 1);
@@ -201,6 +238,7 @@ export async function saveShiftTemplateAction(
     return { error: "Izberi dan v tednu." };
   }
   if (!positionId) return { error: "Izberi delovno mesto." };
+  if (!isPartOfDay(partOfDay)) return { error: "Izberi del dneva." };
   if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) {
     return { error: "Vpiši veljavni uri (npr. 16:00)." };
   }
@@ -222,6 +260,7 @@ export async function saveShiftTemplateAction(
   await prisma.shiftTemplate.create({
     data: {
       weekday,
+      partOfDay,
       positionId,
       startTime,
       endTime,

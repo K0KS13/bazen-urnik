@@ -31,6 +31,7 @@ export type SchedulerSlot = {
   templateId: string;
   positionId: string;
   positionName: string;
+  partOfDay: string;
   start: Date;
   end: Date;
   peopleNeeded: number;
@@ -190,6 +191,7 @@ export function slotFromTemplate(
   template: {
     id: string;
     positionId: string;
+    partOfDay: string;
     startTime: string;
     endTime: string;
     peopleNeeded: number;
@@ -214,6 +216,7 @@ export function slotFromTemplate(
     templateId: template.id,
     positionId: template.positionId,
     positionName: template.position.name,
+    partOfDay: template.partOfDay,
     start,
     end,
     peopleNeeded: Math.max(1, template.peopleNeeded),

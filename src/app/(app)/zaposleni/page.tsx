@@ -28,6 +28,7 @@ export default async function EmployeesPage() {
         active: true,
         hourlyRate: true,
         weeklyHoursTarget: true,
+        updatedAt: true,
         skills: { select: { positionId: true, level: true } },
         _count: { select: { timeEntries: true } },
       },
@@ -134,6 +135,7 @@ export default async function EmployeesPage() {
               <summary className="cursor-pointer text-sm text-muted">Uredi</summary>
 
               <ActionForm
+                resetKey={employee.updatedAt.toISOString()}
                 action={updateEmployeeAction}
                 className="mt-2 flex flex-col gap-3"
               >
@@ -193,6 +195,10 @@ export default async function EmployeesPage() {
 
               {positions.length > 0 ? (
                 <ActionForm
+                  resetKey={employee.skills
+                    .map((skill) => `${skill.positionId}:${skill.level}`)
+                    .sort()
+                    .join("|")}
                   action={saveSkillsAction}
                   className="mt-3 flex flex-col gap-2"
                 >
