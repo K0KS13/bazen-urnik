@@ -128,13 +128,15 @@ Odpre se čez cel zaslon, brez naslovne vrstice brskalnika.
 
 ## Zagon na svojem računalniku
 
-Potrebuješ Node.js 20 ali novejši.
+Potrebuješ Node.js 20 ali novejši. Na Windowsu kliči `npm.cmd` in `npx.cmd` —
+politika izvajanja skript sicer blokira `npm.ps1`.
 
 ```bash
 npm install
 ```
 
-Ustvari `.env` po vzoru `.env.example` in vanj vpiši svoj `AUTH_SECRET`:
+Ustvari `.env` po vzoru `.env.example`: vpiši oba povezovalna niza do baze
+(v Supabase pod **Connect**) in svoj `AUTH_SECRET`:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
@@ -182,8 +184,10 @@ naredi ničesar).
 
 - **Next.js 16** (App Router, strežniške akcije) — vmesnik in strežniška logika
   v enem projektu.
-- **Prisma 7** nad **SQLite** v razvoju; datoteka baze je `prisma/dev.db` in ni
-  v gitu.
+- **Prisma 7** nad **PostgreSQL** (Supabase). Aplikacija se povezuje prek
+  pooler ja (`DATABASE_URL`, vrata 6543), migracije pa prek neposredne povezave
+  (`DIRECT_URL`, vrata 5432) — pooler v transakcijskem načinu za spreminjanje
+  sheme ni primeren.
 - **Seja** je podpisan JWT v `httpOnly` piškotku, veljaven 12 ur (ena izmena).
 - **PIN** je shranjen kot bcrypt hash — iz baze ga ni mogoče prebrati.
 
@@ -231,18 +235,28 @@ prisma/
 
 ## Objava na splet
 
-Dokler teče lokalno, je aplikacija dosegljiva samo v lokalu. Za dostop
-zaposlenih od doma je treba:
+Baza je že na Supabase, aplikacija pa še teče na računalniku. Ostane:
 
-1. **Zamenjati bazo za PostgreSQL.** V `prisma/schema.prisma` nastavi
-   `provider = "postgresql"`, namesti `@prisma/adapter-pg`, v `src/lib/prisma.ts`
-   zamenjaj adapter in v `DATABASE_URL` vpiši povezovalni niz (Supabase ali Neon
-   imata brezplačen nivo, ki za 30 zaposlenih zadošča). Shema je napisana tako,
-   da drugih sprememb ni potrebnih.
-2. **Nastaviti `AUTH_SECRET`** na gostitelju — nov, naključen, ne isti kot
-   lokalno.
-3. **Objaviti na Vercel** (brezplačni nivo) — poveži GitHub repozitorij,
-   nastavi obe spremenljivki okolja, zaženi `npx prisma migrate deploy`.
+1. ~~Zamenjati bazo za PostgreSQL~~ — narejeno.
+2. **Objaviti na Vercel** (brezplačni nivo) — poveži GitHub repozitorij in
+   nastavi spremenljivke okolja `DATABASE_URL`, `DIRECT_URL` in `AUTH_SECRET`.
+3. **Na gostitelju uporabi nov `AUTH_SECRET`**, ne istega kot lokalno.
+
+Migracije se na novo bazo prenesejo z:
+
+```bash
+npx.cmd prisma migrate deploy
+```
+
+### Začasen prikaz brez objave
+
+Za hiter prikaz (npr. vodstvu) ni treba odpirati vrat na usmerjevalniku:
+
+```bash
+cloudflared tunnel --url http://localhost:3100
+```
+
+Dobiš začasen naslov HTTPS, ki neha delovati, ko tunel ustaviš.
 
 ### Preden gre v resnično uporabo
 
