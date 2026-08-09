@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireScheduleManager, requireUser } from "@/lib/session";
+import { startOfDay } from "@/lib/time";
 import type { ActionState } from "@/lib/actions/time";
 
 function refreshViews(): void {
@@ -100,7 +101,7 @@ export async function claimOfferAction(formData: FormData): Promise<ActionState>
       employeeId: user.id,
       status: "approved",
       startDate: { lt: offer.shift.end },
-      endDate: { gte: new Date(offer.shift.start.toDateString()) },
+      endDate: { gte: startOfDay(offer.shift.start) },
     },
     select: { id: true },
   });

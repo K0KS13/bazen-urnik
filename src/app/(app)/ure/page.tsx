@@ -11,6 +11,7 @@ import {
   monthRange,
   toLocalInputValue,
   workedMinutes,
+  zonedParts,
 } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +25,9 @@ export default async function HoursPage({
   const params = await searchParams;
   const canManage = canManageSchedule(user.role);
 
-  const now = new Date();
-  const year = Number(params.leto) || now.getFullYear();
-  const month = Number(params.mesec) || now.getMonth() + 1;
+  const now = zonedParts(new Date());
+  const year = Number(params.leto) || now.year;
+  const month = Number(params.mesec) || now.month;
   const { from, to } = monthRange(year, month);
 
   // Zaposleni brez pravic vidi vedno le svoje ure, ne glede na parametre v URL-ju.

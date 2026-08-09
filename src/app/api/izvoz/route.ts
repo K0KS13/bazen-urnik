@@ -9,6 +9,7 @@ import {
   formatTime,
   monthRange,
   workedMinutes,
+  zonedParts,
 } from "@/lib/time";
 
 /** Vrednost, varna za CSV — ločilo je podpičje, kot ga pričakuje slovenski Excel. */
@@ -31,9 +32,9 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const now = new Date();
-  const year = Number(url.searchParams.get("leto")) || now.getFullYear();
-  const month = Number(url.searchParams.get("mesec")) || now.getMonth() + 1;
+  const now = zonedParts(new Date());
+  const year = Number(url.searchParams.get("leto")) || now.year;
+  const month = Number(url.searchParams.get("mesec")) || now.month;
 
   if (month < 1 || month > 12 || year < 2000 || year > 2100) {
     return new NextResponse("Neveljavno obdobje.", { status: 400 });

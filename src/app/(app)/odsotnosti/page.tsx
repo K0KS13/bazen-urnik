@@ -17,7 +17,12 @@ import {
 import { canManageSchedule } from "@/lib/roles";
 import { requireUser } from "@/lib/session";
 import { plural } from "@/lib/format";
-import { daysBetween, formatDate, toLocalDateValue } from "@/lib/time";
+import {
+  daysBetween,
+  formatDate,
+  startOfDay,
+  toLocalDateValue,
+} from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +34,7 @@ export default async function AbsencesPage() {
   const user = await requireUser();
   const manages = canManageSchedule(user.role);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfDay(new Date());
 
   const [mine, pending, upcoming] = await Promise.all([
     prisma.absence.findMany({

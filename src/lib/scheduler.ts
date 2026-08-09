@@ -1,5 +1,6 @@
 import type { AvailabilityStatus } from "@/lib/availability";
 import { partsRequiredFor } from "@/lib/parts-of-day";
+import { isoWeekday, toLocalDateValue, zonedDate, zonedParts } from "@/lib/time";
 
 /**
  * Samodejno sestavljanje urnika.
@@ -47,15 +48,10 @@ export type SchedulerResult = {
   gaps: Array<{ slot: SchedulerSlot; missing: number }>;
 };
 
-function dayKey(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function isoWeekdayOf(date: Date): number {
-  const day = date.getDay();
-  return day === 0 ? 7 : day;
-}
+// Dan in dan v tednu se določata po času lokala, ne po pasu procesa —
+// sicer izmena čez polnoč pade na napačen dan. Glej src/lib/time.ts.
+const dayKey = toLocalDateValue;
+const isoWeekdayOf = isoWeekday;
 
 function slotMinutes(slot: SchedulerSlot): number {
   return Math.round((slot.end.getTime() - slot.start.getTime()) / 60000);
@@ -213,13 +209,18 @@ export function slotFromTemplate(
   const [endHour, endMinute] = template.endTime.split(":").map(Number);
   if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) return null;
 
-  const start = new Date(day);
-  start.setHours(startHour, startMinute, 0, 0);
-
-  const end = new Date(day);
-  end.setHours(endHour, endMinute, 0, 0);
+  const p = zonedParts(day);
+  const start = zonedDate(p.year, p.month, p.day, startHour, startMinute);
   // Izmena čez polnoč se konča naslednji dan.
-  if (end <= start) end.setDate(end.getDate() + 1);
+  const endsNextDay =
+    endHour * 60 + endMinute <= startHour * 60 + startMinute ? 1 : 0;
+  const end = zonedDate(
+    p.year,
+    p.month,
+    p.day + endsNextDay,
+    endHour,
+    endMinute,
+  );
 
   return {
     templateId: template.id,

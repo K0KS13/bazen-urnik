@@ -3,9 +3,12 @@ import {
   daysBetween,
   decimalHours,
   formatMinutes,
+  formatTime,
   grossMinutes,
   isoWeekday,
   monthRange,
+  parseLocalDate,
+  parseLocalDateTime,
   startOfWeek,
   toLocalDateValue,
   workedMinutes,
@@ -39,25 +42,26 @@ describe("workedMinutes", () => {
 
 describe("isoWeekday", () => {
   it("ponedeljek je 1 in nedelja 7", () => {
-    expect(isoWeekday(new Date("2026-08-10T12:00"))).toBe(1);
-    expect(isoWeekday(new Date("2026-08-16T12:00"))).toBe(7);
+    expect(isoWeekday(parseLocalDateTime("2026-08-10", "12:00")!)).toBe(1);
+    expect(isoWeekday(parseLocalDateTime("2026-08-16", "12:00")!)).toBe(7);
   });
 
   it("izmena, ki se konča po polnoči, pripada dnevu začetka", () => {
     // petek 20:00 -> sobota 02:00; začetek je petek
-    expect(isoWeekday(new Date("2026-08-14T20:00"))).toBe(5);
+    expect(isoWeekday(parseLocalDateTime("2026-08-14", "20:00")!)).toBe(5);
   });
 });
 
 describe("startOfWeek", () => {
-  it("vrne ponedeljek ob polnoči", () => {
-    const start = startOfWeek(new Date("2026-08-13T23:30"));
+  it("vrne ponedeljek ob polnoči po času lokala", () => {
+    const start = startOfWeek(parseLocalDateTime("2026-08-13", "23:30")!);
     expect(toLocalDateValue(start)).toBe("2026-08-10");
-    expect(start.getHours()).toBe(0);
+    expect(formatTime(start)).toBe("00:00");
   });
 
   it("nedelja pripada tednu, ki se je začel v ponedeljek", () => {
-    expect(toLocalDateValue(startOfWeek(new Date("2026-08-16T12:00")))).toBe("2026-08-10");
+    const nedelja = parseLocalDateTime("2026-08-16", "12:00")!;
+    expect(toLocalDateValue(startOfWeek(nedelja))).toBe("2026-08-10");
   });
 });
 
@@ -66,7 +70,7 @@ describe("monthRange", () => {
     const { from, to } = monthRange(2026, 8);
     expect(toLocalDateValue(from)).toBe("2026-08-01");
     expect(toLocalDateValue(to)).toBe("2026-09-01");
-    expect(from.getHours()).toBe(0);
+    expect(formatTime(from)).toBe("00:00");
   });
 
   it("dela tudi za december", () => {
@@ -88,7 +92,10 @@ describe("izpis", () => {
   });
 
   it("daysBetween šteje oba dneva", () => {
-    expect(daysBetween(new Date("2026-08-10T00:00"), new Date("2026-08-10T00:00"))).toBe(1);
-    expect(daysBetween(new Date("2026-08-10T00:00"), new Date("2026-08-12T00:00"))).toBe(3);
+    const dan = (iso: string) => parseLocalDate(iso)!;
+    expect(daysBetween(dan("2026-08-10"), dan("2026-08-10"))).toBe(1);
+    expect(daysBetween(dan("2026-08-10"), dan("2026-08-12"))).toBe(3);
+    // čez jesenski prehod, kjer ima en dan 25 ur
+    expect(daysBetween(dan("2026-10-24"), dan("2026-10-26"))).toBe(3);
   });
 });

@@ -12,13 +12,19 @@ import {
   type SchedulerSlot,
 } from "@/lib/scheduler";
 import { requireScheduleManager } from "@/lib/session";
-import { addDays, parseLocalDate, startOfWeek, weekDays } from "@/lib/time";
+import {
+  addDays,
+  formatDate,
+  isoWeekday,
+  parseLocalDate,
+  startOfWeek,
+  toLocalDateValue,
+  weekDays,
+} from "@/lib/time";
 import type { ActionState } from "@/lib/actions/time";
 
-function dayKey(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+// Dan po času lokala (glej src/lib/time.ts), ne po pasu procesa.
+const dayKey = toLocalDateValue;
 
 /** Sestavi urnik izbranega tedna iz predlog, ocen in razpoložljivosti. */
 export async function generateWeekAction(
@@ -83,7 +89,7 @@ export async function generateWeekAction(
       continue;
     }
 
-    const weekday = day.getDay() === 0 ? 7 : day.getDay();
+    const weekday = isoWeekday(day);
     for (const template of templates.filter((t) => t.weekday === weekday)) {
       const slot = slotFromTemplate(day, template);
       if (slot) slots.push(slot);
@@ -163,12 +169,7 @@ export async function generateWeekAction(
   const missing = gaps.reduce((total, gap) => total + gap.missing, 0);
   const examples = gaps
     .slice(0, 3)
-    .map(
-      (gap) =>
-        `${gap.slot.positionName} ${gap.slot.start.getDate()}. ${
-          gap.slot.start.getMonth() + 1
-        }.`,
-    )
+    .map((gap) => `${gap.slot.positionName} ${formatDate(gap.slot.start)}`)
     .join(", ");
   const gapText = `Nepokritih mest: ${missing} (${examples}${
     gaps.length > 3 ? " …" : ""

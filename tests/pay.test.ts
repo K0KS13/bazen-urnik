@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { bonusForDate, grossPay, rateForDate, type PayRuleLike } from "@/lib/pay";
+import { parseLocalDate, parseLocalDateTime } from "@/lib/time";
 
+// Vsi trenutki so izrecno v času lokala — testi tečejo v UTC.
 // 8. 8. 2026 je sobota, 10. 8. 2026 je ponedeljek.
-const SOBOTA = new Date(2026, 7, 8, 18, 0);
-const PONEDELJEK = new Date(2026, 7, 10, 18, 0);
+const SOBOTA = parseLocalDateTime("2026-08-08", "18:00")!;
+const PONEDELJEK = parseLocalDateTime("2026-08-10", "18:00")!;
 
 const vikend: PayRuleLike = {
   scope: "weekday",
@@ -14,7 +16,7 @@ const vikend: PayRuleLike = {
 const naDatum: PayRuleLike = {
   scope: "date",
   weekday: null,
-  date: new Date(2026, 7, 8),
+  date: parseLocalDate("2026-08-08"),
   bonusPerHour: 2.5,
 };
 
@@ -33,7 +35,14 @@ describe("bonusForDate", () => {
   });
 
   it("pravilo za datum velja ne glede na uro", () => {
-    expect(bonusForDate(new Date(2026, 7, 8, 23, 59), [naDatum])).toBe(2.5);
+    const pozno = parseLocalDateTime("2026-08-08", "23:59")!;
+    expect(bonusForDate(pozno, [naDatum])).toBe(2.5);
+  });
+
+  it("izmena po polnoči pripada naslednjemu dnevu", () => {
+    // 8. 8. ob 23:59 še velja, 9. 8. ob 00:30 pa ne
+    const cezPolnoc = parseLocalDateTime("2026-08-09", "00:30")!;
+    expect(bonusForDate(cezPolnoc, [naDatum])).toBe(0);
   });
 });
 

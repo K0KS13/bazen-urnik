@@ -15,7 +15,9 @@ import {
   formatMinutes,
   formatTime,
   monthRange,
+  startOfDay,
   workedMinutes,
+  zonedParts,
 } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +30,10 @@ export default async function ClockPage() {
   const manages = canManageSchedule(user.role);
 
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfDay(now);
   const todayEnd = addDays(todayStart, 1);
-  const { from, to } = monthRange(now.getFullYear(), now.getMonth() + 1);
+  const today = zonedParts(now);
+  const { from, to } = monthRange(today.year, today.month);
 
   const [
     openEntry,

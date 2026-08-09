@@ -9,6 +9,7 @@ import {
   monthName,
   monthRange,
   workedMinutes,
+  zonedParts,
 } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +22,9 @@ export default async function ExportPage({
   await requireScheduleManager();
   const params = await searchParams;
 
-  const now = new Date();
-  const year = Number(params.leto) || now.getFullYear();
-  const month = Number(params.mesec) || now.getMonth() + 1;
+  const now = zonedParts(new Date());
+  const year = Number(params.leto) || now.year;
+  const month = Number(params.mesec) || now.month;
   const { from, to } = monthRange(year, month);
 
   const [employees, payRules] = await Promise.all([

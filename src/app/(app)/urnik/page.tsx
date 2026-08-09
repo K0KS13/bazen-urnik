@@ -26,9 +26,12 @@ import { getSettings } from "@/lib/settings";
 import {
   addDays,
   formatTime,
+  isSameDay,
+  parseLocalDate,
   startOfWeek,
   toLocalDateValue,
   weekDays,
+  zonedParts,
 } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -59,10 +62,8 @@ export default async function SchedulePage({
   const canManage = canManageSchedule(user.role);
   const now = new Date();
 
-  const requested = params.teden ? new Date(`${params.teden}T00:00:00`) : new Date();
-  const weekStart = startOfWeek(
-    Number.isNaN(requested.getTime()) ? new Date() : requested,
-  );
+  const requested = params.teden ? parseLocalDate(params.teden) : null;
+  const weekStart = startOfWeek(requested ?? now);
   const weekEnd = addDays(weekStart, 7);
   const days = weekDays(weekStart);
 
@@ -144,7 +145,7 @@ export default async function SchedulePage({
           const dayAbsences = visibleAbsences.filter(
             (absence) => absence.startDate < dayEnd && absence.endDate >= day,
           );
-          const isToday = day.toDateString() === now.toDateString();
+          const isToday = isSameDay(day, now);
           const closed = closedRuleFor(day, closedDays);
 
           return (
@@ -167,7 +168,7 @@ export default async function SchedulePage({
                   </span>
                 ) : null}
                 <span className="text-sm text-muted">
-                  {day.getDate()}. {day.getMonth() + 1}.
+                  {zonedParts(day).day}. {zonedParts(day).month}.
                 </span>
               </h2>
 

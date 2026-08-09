@@ -1,9 +1,10 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-// Testi tečejo v istem časovnem pasu kot strežnik (glej src/instrumentation.ts),
-// sicer bi izidi za meje dneva, tedna in meseca odstopali od produkcije.
-process.env.TZ ??= "Europe/Ljubljana";
+// Testi namenoma tečejo v UTC, gostitelji pa tudi. Če se v kodo prikrade
+// odvisnost od časovnega pasu procesa (getHours, setHours, toLocaleTimeString
+// brez timeZone), testi za čas lokala odpovejo — in prav to je namen.
+process.env.TZ = "UTC";
 
 export default defineConfig({
   resolve: {

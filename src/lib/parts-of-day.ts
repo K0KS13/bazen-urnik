@@ -1,3 +1,5 @@
+import { zonedParts } from "@/lib/time";
+
 export const PARTS_OF_DAY = ["dopoldan", "celodnevna", "popoldan"] as const;
 export type PartOfDay = (typeof PARTS_OF_DAY)[number];
 
@@ -41,7 +43,7 @@ export function partsRequiredFor(part: string): AvailabilityPart[] {
  * izmena čez sredino dneva je celodnevna, sicer popoldanska.
  */
 export function derivePartOfDay(start: Date, end: Date): PartOfDay {
-  const startHour = start.getHours();
+  const startHour = zonedParts(start).hour;
   const hours = (end.getTime() - start.getTime()) / 3600000;
 
   if (startHour < 10) return "dopoldan";

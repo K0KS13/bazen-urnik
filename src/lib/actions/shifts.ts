@@ -10,13 +10,19 @@ import {
 } from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
 import { requireScheduleManager } from "@/lib/session";
-import { addDays, isoWeekday, parseLocalDate, startOfWeek } from "@/lib/time";
+import {
+  addDays,
+  isoWeekday,
+  parseLocalDate,
+  parseLocalDateTime,
+  startOfDay,
+  startOfWeek,
+} from "@/lib/time";
 import type { ActionState } from "@/lib/actions/time";
 
 /** Ali ima zaposleni na dan te izmene odobreno odsotnost. */
 async function isAbsent(employeeId: string, day: Date): Promise<boolean> {
-  const dayStart = new Date(day);
-  dayStart.setHours(0, 0, 0, 0);
+  const dayStart = startOfDay(day);
 
   const absence = await prisma.absence.findFirst({
     where: {
@@ -55,14 +61,14 @@ export async function createShiftAction(formData: FormData): Promise<ActionState
   if (!employeeId) return { error: "Izberi zaposlenega." };
   if (!date || !startTime || !endTime) return { error: "Izpolni datum in uri." };
 
-  const start = new Date(`${date}T${startTime}`);
-  const end = new Date(`${date}T${endTime}`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+  const start = parseLocalDateTime(date, startTime);
+  const parsedEnd = parseLocalDateTime(date, endTime);
+  if (!start || !parsedEnd) {
     return { error: "Neveljaven datum ali ura." };
   }
 
   // Izmena čez polnoč (npr. 20:00–02:00) se konča naslednji dan.
-  if (end <= start) end.setDate(end.getDate() + 1);
+  const end = parsedEnd <= start ? addDays(parsedEnd, 1) : parsedEnd;
 
   const overlapping = await prisma.shift.findFirst({
     where: { employeeId, start: { lt: end }, end: { gt: start } },
