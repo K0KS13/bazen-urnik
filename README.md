@@ -180,6 +180,7 @@ naredi ničesar).
 | --- | --- |
 | `npm run dev` | razvojni strežnik na portu 3100 |
 | `npm run build` | produkcijska gradnja in preverjanje tipov |
+| `npm test` | testi nad računanjem časa, odbitkov, dodatkov in urnika |
 | `npm run db:studio` | brskanje po bazi v brskalniku |
 | `npm run db:seed` | prvi račun vodstva (če je baza prazna) |
 | `npx prisma migrate dev --name opis` | nova migracija po spremembi sheme |
@@ -226,6 +227,14 @@ prisma/
   schema.prisma      podatkovni model
   seed.ts            prvi račun vodstva
 ```
+
+### Čas
+
+Vsi trenutki so v bazi shranjeni v UTC, prikaz in razvrščanje po dnevih pa sta
+v času lokala (`Europe/Ljubljana`). Časovni pas strežnika na to **ne vpliva** —
+gostitelji tečejo v UTC in bi sicer kazali napačne ure. Vsa pretvorba je v
+[src/lib/time.ts](src/lib/time.ts); v strežniški kodi ne uporabljaj `getHours`,
+`setHours` ali `new Date("…T16:00")`.
 
 ### Dogovori, ki jih je dobro poznati
 

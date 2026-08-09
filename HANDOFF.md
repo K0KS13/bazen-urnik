@@ -74,10 +74,11 @@ ima ocene po delovnih mestih vpisane le en zaposleni. Glej NEXT STEPS.
 | typescript | ^5 | strict |
 | tsx | ^4.23.11 | zagon skript `.ts` |
 | dotenv | ^17.4.2 | bere `.env` v `prisma.config.ts` |
+| vitest | ^4.1.10 | testi nad čistimi funkcijami |
 | Node.js | 24.19.0 lokalno | Next 16 zahteva ≥ 20 |
 
-`date-fns` je med odvisnostmi, a se **nikjer ne uporablja** — vso delo s časom
-opravlja `src/lib/time.ts`. Kandidat za odstranitev.
+Zunanje knjižnice za delo s časom **ni** — vse opravi `src/lib/time.ts` prek
+vgrajenega `Intl`.
 
 > **Pozor pri Next.js 16.** V `AGENTS.md` (zapiše ga `next dev`) piše, da se ta
 > različica razlikuje od starejših. Dokumentacija je v
@@ -120,6 +121,8 @@ Docker vsebnik `koks-api`; zasedeni so tudi 8080, 80 in 3306.
 | `npm.cmd run build` | `prisma migrate deploy && prisma generate && next build` |
 | `npm.cmd start` | produkcijski strežnik, port 3100 |
 | `npm.cmd run lint` | ESLint |
+| `npm.cmd test` | vitest, enkraten zagon (65 testov) |
+| `npm.cmd run test:watch` | vitest v načinu opazovanja |
 | `npm.cmd run db:studio` | Prisma Studio |
 | `npm.cmd run db:seed` | prvi račun vodstva, **le če je baza prazna** |
 
@@ -438,37 +441,49 @@ odgovor strežnika. Uporabljaj ta gradnik.
 
 ## 12. Znane napake in nedokončano
 
-### 12.1 Časovni pas — **ODPRTO, VPLIVA NA OBRAČUN**
+### 12.1 Časovni pas — **ODPRAVLJENO 9. 8. 2026**
 
-Vsa oblikovanja in razvrščanja časa uporabljajo **lokalni čas strežnika**
-(`toLocaleTimeString`, `getHours`, `setHours`, `startOfWeek`, `monthRange`,
-`isoWeekday`, `derivePartOfDay`). Vercel privzeto teče v **UTC**.
+Zgodovina, ker je pomembna za razumevanje `time.ts`: vsa oblikovanja in
+razvrščanja časa so uporabljala **lokalni čas procesa**, Vercel pa teče v UTC.
+Izmena, shranjena kot `18:00Z` (v Ljubljani 20:00), se je na produkciji
+izpisala kot `18:00–21:00`. Napačne so bile tudi meje tedna in meseca, dan v
+tednu za izmene čez polnoč in izpeljan del dneva.
 
-Preverjeno 9. 8. 2026: izmena, shranjena kot `18:00Z` (v Ljubljani 20:00), se
-na produkciji izpiše kot **18:00–21:00** namesto 20:00–23:00.
+Poskus, da bi pas nastavili ob zagonu (`instrumentation.ts` →
+`process.env.TZ`), **ni zalegel** — Next.js izrisuje v ločenih delovnih
+procesih, ki te nastavitve ne dobijo. Ta pristop je bil odstranjen; ne
+poskušaj ga znova.
 
-Posledice: napačni prikazani časi (poleti −2 h, pozimi −1 h), napačne meje
-tedna in meseca v izvozu, napačen dan v tednu za izmene čez polnoč, napačno
-izpeljan del dneva.
+Rešitev: `src/lib/time.ts` čas izrecno razstavlja in sestavlja v pasu lokala
+prek `Intl` s `timeZone`, zato pas procesa nanj ne vpliva. Pas je v
+`APP_TIME_ZONE` (namenoma **ne** `TZ`, da ga okolje ne more tiho povoziti),
+privzeto `Europe/Ljubljana`.
 
-**Popravek:** na Vercelu dodaj spremenljivko okolja `TZ=Europe/Ljubljana` in
-znova objavi. Zapisana je že v `.env.example`. Trajnejša rešitev bi bila
-oblikovanje z izrecnim `timeZone` in prehod na knjižnico, ki dela s conami
-(`date-fns-tz` ali `Temporal`), a to zahteva predelavo `time.ts`.
+Preverjeno na produkciji po objavi: ista izmena se zdaj izpiše kot
+`20:00–23:00`.
+
+> **Pozor:** v strežniški kodi ne uporabljaj `getHours`, `setHours`, `getDay`,
+> `getDate`, `toDateString` ali `toLocaleTimeString` brez `timeZone`, prav tako
+> ne `new Date("2026-08-10T16:00")`. Uporabi `zonedParts`, `zonedDate`,
+> `parseLocalDate`, `parseLocalDateTime`, `startOfDay`, `addDays`, `isoWeekday`
+> in `isSameDay` iz `src/lib/time.ts`. Testi tečejo v UTC in tako odvisnost
+> takoj odkrijejo. Izjema je `live-clock.tsx`, ki teče v brskalniku in namenoma
+> uporablja čas naprave.
 
 ### 12.2 Zaklep po neuspelih prijavah ne deluje zanesljivo
 Števci so v pomnilniku procesa. Na Vercelu (več instanc, hladni zagoni) se
 ponastavijo. Za pravo omejevanje je treba stanje preseliti v bazo ali Redis.
 
-### 12.3 Samodejni urnik je v praksi neuporaben
+### 12.3 Samodejni urnik še nima podatkov
 Ocene po delovnih mestih ima vpisane **en zaposleni od dvajsetih**. Brez ocen
 `minLevel` nikogar ne prepusti. Ni napaka v kodi, je manjkajoč vnos podatkov.
+Vnos je odslej hiter — tabela **Ocene celotne ekipe** v zavihku Ekipa shrani
+vse naenkrat.
 
-### 12.4 Ni testov
-Testnega ogrodja ni. Preverjanje je potekalo ročno prek brskalnika in z
-enkratnimi skriptami, ki so bile po uporabi pobrisane. `src/lib/scheduler.ts`,
-`pay.ts`, `lateness.ts` in `time.ts` so čiste funkcije in **primerne za teste
-brez baze**.
+### 12.4 Testi pokrivajo le čiste funkcije
+Obstaja 65 testov (`npm.cmd test`) nad `scheduler.ts`, `lateness.ts`, `pay.ts`
+in `time.ts`. **Ni** testov za strežniške akcije, dostopne pravice in
+vmesnik — te je treba še vedno preveriti ročno.
 
 ### 12.5 Datoteke se na razvojnem računalniku kvarijo
 Trikrat je datoteka postala niz ničelnih bajtov ali presledkov:
@@ -481,10 +496,6 @@ Po vsakem `git push` preveri, da so migracije še berljive.
 ### 12.6 Manjše
 - Predlog izmen in izmen **ni mogoče urejati** — samo izbrisati in vpisati
   znova.
-- `package.json` → `allowScripts` še vedno navaja `better-sqlite3`, ki ni več
-  odvisnost. Neškodljivo, a zastarelo.
-- `date-fns` je odvisnost brez uporabe.
-- `public/*.svg` so neuporabljene privzete datoteke.
 - `prisma/seed.ts` ustvari račun z imenom »Jaka (vodstvo)«, ki v bazi ne
   obstaja več (preimenovan). Skripta deluje le, če je baza prazna.
 - Izvoz ne vključuje izmen, ki še tečejo (brez odjave) — namerno, a vodja mora
@@ -536,7 +547,28 @@ cloudflared tunnel --url http://localhost:3100
 
 ## 15. Testiranje
 
-Formalnih testov **ni**. Ob predaji je bilo ročno preverjeno:
+```bash
+npm.cmd test
+```
+
+**65 testov** v `tests/`, vsi nad čistimi funkcijami, brez baze in brez mreže:
+
+| Datoteka | Kaj pokriva |
+|---|---|
+| `tests/timezone.test.ts` | čas lokala neodvisno od pasu procesa, poletni in zimski čas, oba prehoda, meje dneva/tedna/meseca, razčlenjevanje vnosa, izpeljava dela dneva |
+| `tests/time.test.ts` | opravljene minute, izmene čez polnoč, meje tedna in meseca, izpis ur |
+| `tests/lateness.test.ts` | dogovorjena lestvica odbitkov, tolerance, robni primeri |
+| `tests/pay.test.ts` | dodatki po dnevu v tednu in po datumu, prevlada datuma, izračun bruto |
+| `tests/scheduler.test.ts` | razpoložljivost po delih dneva, ocene, zahteva po izkušenem, odsotnosti, prekrivanja, cilj ur, izmene čez polnoč |
+
+> **Testi namenoma tečejo v `TZ=UTC`** (`vitest.config.mts`), gostitelji pa tudi.
+> Če se v kodo prikrade odvisnost od časovnega pasu procesa, testi za čas
+> lokala odpovejo. Te nastavitve ne spreminjaj.
+
+**Ni pokrito:** strežniške akcije, dostopne pravice, vmesnik, delo z bazo.
+Za to je treba še vedno ročno preverjanje.
+
+Ob predaji je bilo ročno preverjeno:
 
 - prijava (pravilen in napačen PIN, obstojnost seje) — lokalno, prek omrežnega
   naslova in na produkciji;
@@ -551,9 +583,8 @@ Formalnih testov **ni**. Ob predaji je bilo ročno preverjeno:
 - razporejevalnik: 6 primerov razpoložljivosti po delih dneva (dopoldan,
   popoldan, celodnevna, prednost »lahko« pred »po dogovoru«, prazen vnos).
 
-Preizkusi razporejevalnika so bili pognani kot enkratna skripta prek `tsx` in
-niso ohranjeni. **Priporočilo:** preden se karkoli spremeni v `scheduler.ts`,
-`pay.ts` ali `lateness.ts`, jih zapiši kot prave teste.
+Ti ročni primeri so odslej zajeti v testih, razen tistih, ki zahtevajo bazo
+(menjave, odsotnosti, kopiranje tedna, zaprti dnevi).
 
 ---
 
@@ -583,13 +614,11 @@ niso ohranjeni. **Priporočilo:** preden se karkoli spremeni v `scheduler.ts`,
 
 | Dolg | Predlog |
 |---|---|
-| Časovni pas (12.1) | takoj `TZ`, dolgoročno `date-fns-tz` ali `Temporal` |
 | Zaklep prijave v pomnilniku | prestavi v bazo |
-| Ni testov | vitest nad čistimi funkcijami |
+| Testi ne pokrivajo akcij in pravic | dodaj teste nad akcijami s testno bazo |
 | Nizi namesto enumov | ob naslednji večji migraciji razmisli o enumih |
 | Ni urejanja predlog in izmen | dodaj urejanje namesto brisanja |
 | Ni ločenega razvojnega okolja | drugi Supabase projekt za razvoj |
-| Neuporabljene odvisnosti in datoteke | `date-fns`, `public/*.svg`, `allowScripts` |
 | Poizvedbe v zankah | `copyPreviousWeekAction` in generator delata poizvedbe v zanki; pri 30 ljudeh je to sprejemljivo, pri rasti ne |
 
 ---
@@ -598,13 +627,16 @@ niso ohranjeni. **Priporočilo:** preden se karkoli spremeni v `scheduler.ts`,
 
 Razvrščeno po prioriteti glede na dejansko stanje.
 
-### 1. Nastavi `TZ=Europe/Ljubljana` na Vercelu — **danes**
-Edina napaka, ki že zdaj kvari podatke, ki gredo v obračun. Ena spremenljivka
-okolja in ponovna objava. Nato preveri prikaz izmen in izvoz za tekoči mesec.
-
-### 2. Vnesi ocene po delovnih mestih za vso ekipo — **danes**
+### 1. Vnesi ocene po delovnih mestih za vso ekipo — **danes**
 19 od 20 zaposlenih nima ocen, zato samodejni urnik ne razporedi nikogar.
-Brez tega je največja funkcija aplikacije mrtva. Vnos je v zavihku Ekipa.
+Brez tega je največja funkcija aplikacije mrtva. Vnos je v zavihku Ekipa,
+razdelek **Ocene celotne ekipe** — cela tabela se shrani naenkrat.
+
+### 2. Preveri obračun za tekoči mesec
+Časovni pas je bil popravljen 9. 8. 2026. Vnosi ur, nastali **pred** tem, so v
+bazi shranjeni pravilno (UTC), zato jih popravek le pravilneje prikaže — a
+mesečni seštevki, ki so bili morda že izvoženi, so bili napačni. Preveri
+izvoz za tekoči in prejšnji mesec.
 
 ### 3. Razreši protislovje ponedeljkov
 V bazi je 42 predlog izmen in 1 zaprt dan. Preveri, ali se ne izključujeta —
@@ -615,10 +647,10 @@ Geslo baze je bilo enkrat izpostavljeno. Zamenjaj ga v Supabase ter posodobi
 `.env` in Vercel. Prepričaj se, da ima produkcija drug `AUTH_SECRET` kot
 lokalno okolje.
 
-### 5. Testi nad čistimi funkcijami
-`vitest` in testi za `scheduler.ts`, `lateness.ts`, `pay.ts`, `time.ts` —
-izmene čez polnoč, meje meseca, odbitki, dodatki za nazaj. Poceni in ščiti
-plače. Primeri, ki so bili preverjeni ročno, so v razdelku 15.
+### 5. Zaklep prijave prestavi iz pomnilnika v bazo
+Zdaj se števci neuspelih poskusov na Vercelu ponastavijo ob vsakem hladnem
+zagonu, zato omejitev petih poskusov v praksi ne drži. Pri 4-mestnem PIN-u je
+to edina zaščita pred ugibanjem.
 
 ### 6. Obvestila
 Brez njih zaposleni ne bodo sami odpirali aplikacije. Aplikacija je PWA, zato
