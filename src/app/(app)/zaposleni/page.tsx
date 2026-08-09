@@ -142,6 +142,25 @@ export default async function EmployeesPage() {
                 <input type="hidden" name="id" value={employee.id} />
                 <div className="grid grid-cols-2 gap-3">
                   <div>
+                    <label className="label">Ime</label>
+                    <input
+                      name="firstName"
+                      className="field"
+                      defaultValue={employee.firstName}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Priimek</label>
+                    <input
+                      name="lastName"
+                      className="field"
+                      defaultValue={employee.lastName}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
                     <label className="label">Vloga</label>
                     <select name="role" className="field" defaultValue={employee.role}>
                       {ROLES.map((role) => (

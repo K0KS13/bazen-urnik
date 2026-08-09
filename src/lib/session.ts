@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +24,21 @@ export type SessionUser = {
   role: Role;
 };
 
+/**
+ * Ali je zahteva prišla po HTTPS. Zastavico `Secure` postavimo natanko takrat —
+ * brskalniki namreč tak piškotek prek navadnega HTTP zavržejo, kar bi pri
+ * dostopu prek omrežnega naslova (npr. http://192.168.0.10:3100) pomenilo, da
+ * se prijava sicer posreči, seja pa se ne shrani in te ob prvem kliku vrne
+ * nazaj na prijavo. Za gostovanje na spletu (Vercel, Cloudflare) glava
+ * `x-forwarded-proto` obstaja in je https, zato tam zaščita ostane.
+ */
+async function isSecureRequest(): Promise<boolean> {
+  const headerList = await headers();
+  const forwarded = headerList.get("x-forwarded-proto");
+  if (forwarded) return forwarded.split(",")[0]?.trim() === "https";
+  return headerList.get("x-forwarded-ssl") === "on";
+}
+
 export async function createSession(employeeId: string): Promise<void> {
   const token = await new SignJWT({ sub: employeeId })
     .setProtectedHeader({ alg: "HS256" })
@@ -35,7 +50,7 @@ export async function createSession(employeeId: string): Promise<void> {
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: await isSecureRequest(),
     path: "/",
     maxAge: SESSION_HOURS * 60 * 60,
   });

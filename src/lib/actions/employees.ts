@@ -27,7 +27,8 @@ export async function createEmployeeAction(
   const pin = String(formData.get("pin") ?? "");
   const hourlyRateRaw = String(formData.get("hourlyRate") ?? "").replace(",", ".");
 
-  if (!firstName || !lastName) return { error: "Vpiši ime in priimek." };
+  // Priimek je neobvezen — v majhni ekipi se ljudi kliče po imenu.
+  if (!firstName) return { error: "Vpiši vsaj ime." };
   if (!isRole(role)) return { error: "Neveljavna vloga." };
 
   const pinError = validatePin(pin);
@@ -58,8 +59,12 @@ export async function updateEmployeeAction(
   const admin = await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
   const role = String(formData.get("role") ?? "");
   const active = formData.get("active") === "on";
+
+  if (!firstName) return { error: "Ime ne sme biti prazno." };
   const hourlyRateRaw = String(formData.get("hourlyRate") ?? "").replace(",", ".");
   const targetRaw = String(formData.get("weeklyHoursTarget") ?? "").replace(",", ".");
 
@@ -87,7 +92,7 @@ export async function updateEmployeeAction(
 
   await prisma.employee.update({
     where: { id },
-    data: { role, active, hourlyRate, weeklyHoursTarget },
+    data: { firstName, lastName, role, active, hourlyRate, weeklyHoursTarget },
   });
 
   revalidatePath("/zaposleni");
