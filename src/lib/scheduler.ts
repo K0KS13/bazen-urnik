@@ -1,4 +1,5 @@
 import type { AvailabilityStatus } from "@/lib/availability";
+import { partsRequiredFor } from "@/lib/parts-of-day";
 
 /**
  * Samodejno sestavljanje urnika.
@@ -14,8 +15,9 @@ export type SchedulerCandidate = {
   id: string;
   /// Ocena po delovnem mestu; manjkajoče delovno mesto pomeni oceno 0.
   skillByPosition: Record<string, number>;
-  /// Razpoložljivost po dnevih (1–7); manjkajoč dan pomeni "yes".
-  availabilityByWeekday: Record<number, AvailabilityStatus>;
+  /// Razpoložljivost, ključ `${dan}:${delDneva}` (npr. "5:popoldan").
+  /// Manjkajoč vnos pomeni "yes".
+  availability: Record<string, AvailabilityStatus>;
   /// Dnevi z odobreno odsotnostjo, v obliki "2026-08-09".
   absentDays: Set<string>;
   weeklyHoursTarget: number | null;
@@ -59,11 +61,22 @@ function slotMinutes(slot: SchedulerSlot): number {
   return Math.round((slot.end.getTime() - slot.start.getTime()) / 60000);
 }
 
+/**
+ * Razpoložljivost za konkretno mesto. Celodnevna izmena zahteva oba dela
+ * dneva, zato velja slabši od obeh statusov.
+ */
 function availabilityFor(
   candidate: SchedulerCandidate,
-  weekday: number,
+  slot: SchedulerSlot,
 ): AvailabilityStatus {
-  return candidate.availabilityByWeekday[weekday] ?? "yes";
+  const weekday = isoWeekdayOf(slot.start);
+  const statuses = partsRequiredFor(slot.partOfDay).map(
+    (part) => candidate.availability[`${weekday}:${part}`] ?? "yes",
+  );
+
+  if (statuses.includes("no")) return "no";
+  if (statuses.includes("maybe")) return "maybe";
+  return "yes";
 }
 
 function skillFor(candidate: SchedulerCandidate, positionId: string): number {
@@ -79,10 +92,8 @@ function overlaps(candidate: SchedulerCandidate, slot: SchedulerSlot): boolean {
 
 /** Ali kandidat sploh sme na to mesto (ne glede na cilj ur). */
 function isEligible(candidate: SchedulerCandidate, slot: SchedulerSlot): boolean {
-  const weekday = isoWeekdayOf(slot.start);
-
   if (skillFor(candidate, slot.positionId) < slot.minLevel) return false;
-  if (availabilityFor(candidate, weekday) === "no") return false;
+  if (availabilityFor(candidate, slot) === "no") return false;
   if (candidate.absentDays.has(dayKey(slot.start))) return false;
   if (overlaps(candidate, slot)) return false;
 
@@ -105,10 +116,8 @@ function rank(
   b: SchedulerCandidate,
   slot: SchedulerSlot,
 ): number {
-  const weekday = isoWeekdayOf(slot.start);
-
   const availabilityRank = (candidate: SchedulerCandidate) =>
-    availabilityFor(candidate, weekday) === "yes" ? 0 : 1;
+    availabilityFor(candidate, slot) === "yes" ? 0 : 1;
   const byAvailability = availabilityRank(a) - availabilityRank(b);
   if (byAvailability !== 0) return byAvailability;
 

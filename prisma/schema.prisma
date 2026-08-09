@@ -157,22 +157,25 @@ model ShiftTemplate {
   @@index([weekday])
 }
 
-/// Tedenska razpoložljivost zaposlenega — okvir, ki ga vodja upošteva pri urniku.
+/// Tedenska razpoložljivost zaposlenega, ločeno za dopoldne in popoldne.
+///
+/// Razpoložljivost se vodi po istih delih dneva kot izmene, da jo samodejni
+/// urnik lahko dejansko upošteva. Celodnevna izmena zahteva razpoložljivost v
+/// obeh delih, zato zanjo ni svoje vrstice.
 model Availability {
   id         String   @id @default(cuid())
   employeeId String
   employee   Employee @relation("AvailabilityEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
   /// 1 = ponedeljek … 7 = nedelja
   weekday    Int
+  /// "dopoldan" | "popoldan" — glej AVAILABILITY_PARTS v src/lib/parts-of-day.ts
+  partOfDay  String   @default("dopoldan")
   /// "yes" | "maybe" | "no" — glej src/lib/availability.ts
   status     String   @default("yes")
-  /// Okvirni čas, ko je na voljo, npr. "16:00"–"23:00". Neobvezno.
-  fromTime   String?
-  toTime     String?
   note       String?
   updatedAt  DateTime @updatedAt
 
-  @@unique([employeeId, weekday])
+  @@unique([employeeId, weekday, partOfDay])
 }
 
 /// Dodatek na urno postavko za določen dan v tednu ali za konkreten datum.

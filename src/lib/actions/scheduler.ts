@@ -45,7 +45,9 @@ export async function generateWeekAction(
         lastName: true,
         weeklyHoursTarget: true,
         skills: { select: { positionId: true, level: true } },
-        availability: { select: { weekday: true, status: true } },
+        availability: {
+          select: { weekday: true, partOfDay: true, status: true },
+        },
         absences: {
           where: {
             status: "approved",
@@ -118,9 +120,9 @@ export async function generateWeekAction(
       skillByPosition: Object.fromEntries(
         employee.skills.map((skill) => [skill.positionId, skill.level]),
       ),
-      availabilityByWeekday: Object.fromEntries(
+      availability: Object.fromEntries(
         employee.availability.map((row) => [
-          row.weekday,
+          `${row.weekday}:${row.partOfDay}`,
           row.status as AvailabilityStatus,
         ]),
       ),

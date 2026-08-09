@@ -2,35 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 import { isAvailabilityStatus, WEEKDAYS } from "@/lib/availability";
+import { AVAILABILITY_PARTS } from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import type { ActionState } from "@/lib/actions/time";
 
-const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-function readTime(formData: FormData, field: string): string | null {
-  const value = String(formData.get(field) ?? "").trim();
-  return TIME_PATTERN.test(value) ? value : null;
-}
-
-/** Zaposleni odda razpoložljivost za cel teden naenkrat. */
+/**
+ * Zaposleni odda razpoložljivost za cel teden naenkrat, ločeno za dopoldne in
+ * popoldne. Deli dneva so isti kot pri izmenah, zato jih samodejni urnik
+ * dejansko upošteva.
+ */
 export async function saveAvailabilityAction(
   formData: FormData,
 ): Promise<ActionState> {
   const user = await requireUser();
 
-  const rows = WEEKDAYS.map((weekday) => {
-    const status = String(formData.get(`status-${weekday}`) ?? "yes");
-    return {
+  const rows = WEEKDAYS.flatMap((weekday) =>
+    AVAILABILITY_PARTS.map((partOfDay) => ({
       weekday,
-      status,
-      fromTime: readTime(formData, `from-${weekday}`),
-      toTime: readTime(formData, `to-${weekday}`),
-    };
-  });
+      partOfDay,
+      status: String(formData.get(`status-${weekday}-${partOfDay}`) ?? "yes"),
+    })),
+  );
 
-  // Časovnega okvira ne preverjamo glede na vrstni red: konec pred začetkom
-  // pomeni čez polnoč (npr. 18:00–02:00), kar je tu povsem običajno.
   if (!rows.every((row) => isAvailabilityStatus(row.status))) {
     return { error: "Neveljavna izbira razpoložljivosti." };
   }
@@ -39,20 +33,19 @@ export async function saveAvailabilityAction(
     rows.map((row) =>
       prisma.availability.upsert({
         where: {
-          employeeId_weekday: { employeeId: user.id, weekday: row.weekday },
+          employeeId_weekday_partOfDay: {
+            employeeId: user.id,
+            weekday: row.weekday,
+            partOfDay: row.partOfDay,
+          },
         },
         create: {
           employeeId: user.id,
           weekday: row.weekday,
+          partOfDay: row.partOfDay,
           status: row.status,
-          fromTime: row.fromTime,
-          toTime: row.toTime,
         },
-        update: {
-          status: row.status,
-          fromTime: row.fromTime,
-          toTime: row.toTime,
-        },
+        update: { status: row.status },
       }),
     ),
   );

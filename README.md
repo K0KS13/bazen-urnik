@@ -56,12 +56,17 @@ Nameščanje iz trgovine z aplikacijami ni potrebno.
 
 **Razpoložljivost**
 
-- Zaposleni za vsak dan v tednu označi *lahko delam / po dogovoru / ne morem*,
-  po želji z okvirnim časom.
-- Vodja vidi mrežo cele ekipe po dnevih. Če vpiše izmeno na dan, ko je nekdo
-  označil »ne morem«, dobi opozorilo — izmena se vseeno vpiše, ker je
-  razpoložljivost okvir, ne prepoved. Za konkretne dneve, ko koga ne bo, se
-  uporabi **Odsotnosti**.
+- Zaposleni za vsak dan označi **dopoldne in popoldne posebej**: *lahko delam /
+  po dogovoru / ne morem*. Klik na polje kroži med stanji, brez tipkanja ur;
+  hitre izbire (*Kadarkoli, Samo dopoldne, Samo popoldne, Samo vikend*) izpolnijo
+  cel teden z enim klikom.
+- Deli dneva so isti kot pri izmenah, zato jih **samodejni urnik dejansko
+  upošteva**: kdor dopoldne ne more, ne dobi dopoldanske izmene, celodnevna pa
+  zahteva razpoložljivost v obeh delih dneva.
+- Vodja vidi mrežo cele ekipe po dnevih (zgornja vrstica dopoldne, spodnja
+  popoldne). Če vpiše izmeno takrat, ko je nekdo označil »ne morem«, dobi
+  opozorilo — izmena se vseeno vpiše, ker je razpoložljivost okvir, ne prepoved.
+  Za konkretne dneve, ko koga ne bo, se uporabi **Odsotnosti**.
 
 **Samodejno sestavljanje urnika**
 

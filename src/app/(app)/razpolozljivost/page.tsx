@@ -1,22 +1,33 @@
 import { ActionForm } from "@/components/action-form";
+import { AvailabilityGrid } from "@/components/availability-grid";
 import { saveAvailabilityAction } from "@/lib/actions/availability";
 import {
   AVAILABILITY_CLASS,
   AVAILABILITY_LABELS,
-  AVAILABILITY_SHORT,
   AVAILABILITY_STATUSES,
-  WEEKDAY_LABELS,
   WEEKDAY_SHORT,
   WEEKDAYS,
   type AvailabilityStatus,
 } from "@/lib/availability";
+import { AVAILABILITY_PARTS, type AvailabilityPart } from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
 import { canManageSchedule } from "@/lib/roles";
 import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-function statusOf(value: string): AvailabilityStatus {
+const PART_SHORT: Record<AvailabilityPart, string> = {
+  dopoldan: "dop",
+  popoldan: "pop",
+};
+
+const MARK: Record<AvailabilityStatus, string> = {
+  yes: "✓",
+  maybe: "?",
+  no: "✕",
+};
+
+function statusOf(value: string | undefined): AvailabilityStatus {
   return AVAILABILITY_STATUSES.includes(value as AvailabilityStatus)
     ? (value as AvailabilityStatus)
     : "yes";
@@ -42,7 +53,9 @@ export default async function AvailabilityPage() {
       : Promise.resolve([]),
   ]);
 
-  const byWeekday = new Map(mine.map((row) => [row.weekday, row]));
+  const initial = Object.fromEntries(
+    mine.map((row) => [`${row.weekday}:${row.partOfDay}`, statusOf(row.status)]),
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -55,60 +68,13 @@ export default async function AvailabilityPage() {
 
         <ActionForm
           resetKey={mine
-            .map((row) => `${row.weekday}:${row.status}:${row.fromTime}:${row.toTime}`)
+            .map((row) => `${row.weekday}:${row.partOfDay}:${row.status}`)
             .sort()
             .join("|")}
           action={saveAvailabilityAction}
           className="mt-3 flex flex-col gap-3"
         >
-          {WEEKDAYS.map((weekday) => {
-            const row = byWeekday.get(weekday);
-            const current = statusOf(row?.status ?? "yes");
-
-            return (
-              <div key={weekday} className="rounded-xl bg-surface-2 p-3">
-                <p className="mb-2 font-medium">{WEEKDAY_LABELS[weekday]}</p>
-
-                <div className="flex gap-1.5">
-                  {AVAILABILITY_STATUSES.map((status) => (
-                    <label
-                      key={status}
-                      className="flex-1 cursor-pointer text-center text-xs"
-                    >
-                      <input
-                        type="radio"
-                        name={`status-${weekday}`}
-                        value={status}
-                        defaultChecked={current === status}
-                        className="peer sr-only"
-                      />
-                      <span className="block rounded-lg border border-border px-2 py-2 font-semibold text-muted peer-checked:border-accent peer-checked:bg-accent/15 peer-checked:text-accent">
-                        {AVAILABILITY_LABELS[status]}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-xs text-muted">Od</span>
-                  <input
-                    type="time"
-                    name={`from-${weekday}`}
-                    defaultValue={row?.fromTime ?? ""}
-                    className="field flex-1 py-1.5 text-sm"
-                  />
-                  <span className="text-xs text-muted">do</span>
-                  <input
-                    type="time"
-                    name={`to-${weekday}`}
-                    defaultValue={row?.toTime ?? ""}
-                    className="field flex-1 py-1.5 text-sm"
-                  />
-                </div>
-              </div>
-            );
-          })}
-
+          <AvailabilityGrid initial={initial} />
           <button type="submit" className="btn-primary">
             Shrani razpoložljivost
           </button>
@@ -132,38 +98,43 @@ export default async function AvailabilityPage() {
             <tbody>
               {team.map((employee) => {
                 const rows = new Map(
-                  employee.availability.map((row) => [row.weekday, row]),
+                  employee.availability.map((row) => [
+                    `${row.weekday}:${row.partOfDay}`,
+                    statusOf(row.status),
+                  ]),
                 );
                 return (
                   <tr key={employee.id} className="border-t border-border/50">
                     <td className="py-2 pr-2 whitespace-nowrap">
                       {employee.firstName} {employee.lastName}
                     </td>
-                    {WEEKDAYS.map((weekday) => {
-                      const row = rows.get(weekday);
-                      const status = statusOf(row?.status ?? "yes");
-                      return (
-                        <td key={weekday} className="py-2 text-center">
-                          <span
-                            title={
-                              row?.fromTime && row?.toTime
-                                ? `${row.fromTime}–${row.toTime}`
-                                : AVAILABILITY_LABELS[status]
-                            }
-                            className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${AVAILABILITY_CLASS[status]}`}
-                          >
-                            {AVAILABILITY_SHORT[status]}
-                          </span>
-                        </td>
-                      );
-                    })}
+                    {WEEKDAYS.map((weekday) => (
+                      <td key={weekday} className="px-0.5 py-2">
+                        <div className="flex flex-col gap-0.5">
+                          {AVAILABILITY_PARTS.map((part) => {
+                            const status =
+                              rows.get(`${weekday}:${part}`) ?? "yes";
+                            return (
+                              <span
+                                key={part}
+                                title={`${PART_SHORT[part]}: ${AVAILABILITY_LABELS[status]}`}
+                                className={`rounded px-1 py-0.5 text-center text-[10px] font-semibold ${AVAILABILITY_CLASS[status]}`}
+                              >
+                                {PART_SHORT[part]} {MARK[status]}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    ))}
                   </tr>
                 );
               })}
             </tbody>
           </table>
           <p className="mt-3 text-xs text-muted">
-            Kdor razpoložljivosti še ni oddal, je prikazan kot »lahko delam«.
+            Zgornja vrstica je dopoldne, spodnja popoldne. Kdor razpoložljivosti
+            še ni oddal, je prikazan kot »lahko delam«.
           </p>
         </section>
       ) : null}

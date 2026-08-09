@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { isClosed } from "@/lib/closed-days";
 import { plural } from "@/lib/format";
-import { derivePartOfDay, isPartOfDay } from "@/lib/parts-of-day";
+import {
+  derivePartOfDay,
+  isPartOfDay,
+  partsRequiredFor,
+} from "@/lib/parts-of-day";
 import { prisma } from "@/lib/prisma";
 import { requireScheduleManager } from "@/lib/session";
 import { addDays, isoWeekday, parseLocalDate, startOfWeek } from "@/lib/time";
@@ -90,12 +94,17 @@ export async function createShiftAction(formData: FormData): Promise<ActionState
 
   // Razpoložljivost je okvir, ne prepoved — izmeno vpišemo, a na neujemanje
   // opozorimo, da vodja ve, da se je treba dogovoriti.
-  const availability = await prisma.availability.findUnique({
+  // Celodnevna izmena zahteva oba dela dneva, zato preverimo vse potrebne.
+  const shiftPart = partOfDay ?? derivePartOfDay(start, end);
+  const availability = await prisma.availability.findMany({
     where: {
-      employeeId_weekday: { employeeId, weekday: isoWeekday(start) },
+      employeeId,
+      weekday: isoWeekday(start),
+      partOfDay: { in: partsRequiredFor(shiftPart) },
     },
     select: { status: true },
   });
+  const statuses = availability.map((row) => row.status);
 
   // Zaprt dan je opozorilo, ne prepoved — včasih je v lokalu zaprta zabava.
   const closedDays = await prisma.closedDay.findMany();
@@ -103,11 +112,11 @@ export async function createShiftAction(formData: FormData): Promise<ActionState
     return { ok: "Izmena dodana, a ta dan je lokal označen kot zaprt." };
   }
 
-  if (availability?.status === "no") {
-    return { ok: "Izmena dodana, a ta oseba je za ta dan označila »ne morem«." };
+  if (statuses.includes("no")) {
+    return { ok: "Izmena dodana, a ta oseba takrat ni na voljo (»ne morem«)." };
   }
-  if (availability?.status === "maybe") {
-    return { ok: "Izmena dodana. Ta dan ima oseba označen »po dogovoru«." };
+  if (statuses.includes("maybe")) {
+    return { ok: "Izmena dodana. Ta oseba ima takrat označeno »po dogovoru«." };
   }
 
   return { ok: "Izmena dodana." };

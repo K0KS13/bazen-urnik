@@ -19,6 +19,23 @@ export function isPartOfDay(value: string): value is PartOfDay {
 }
 
 /**
+ * Deli dneva, po katerih se vodi razpoložljivost. Celodnevne izmene ni na
+ * seznamu — zahteva razpoložljivost dopoldne in popoldne.
+ */
+export const AVAILABILITY_PARTS = ["dopoldan", "popoldan"] as const;
+export type AvailabilityPart = (typeof AVAILABILITY_PARTS)[number];
+
+export function isAvailabilityPart(value: string): value is AvailabilityPart {
+  return (AVAILABILITY_PARTS as readonly string[]).includes(value);
+}
+
+/** Kateri deli dneva morajo biti prosti, da lahko nekdo prevzame to izmeno. */
+export function partsRequiredFor(part: string): AvailabilityPart[] {
+  if (part === "celodnevna") return ["dopoldan", "popoldan"];
+  return isAvailabilityPart(part) ? [part] : ["popoldan"];
+}
+
+/**
  * Del dneva za izmene, ki ga nimajo zapisanega (vpisane pred to možnostjo).
  * Sklepamo iz začetka in trajanja: zgodnji začetek je dopoldanska, dolga
  * izmena čez sredino dneva je celodnevna, sicer popoldanska.
