@@ -30,6 +30,12 @@ model Employee {
   timeEntries   TimeEntry[] @relation("EntryEmployee")
   editedEntries TimeEntry[] @relation("EntryEditedBy")
 
+  absences        Absence[]    @relation("AbsenceEmployee")
+  decidedAbsences Absence[]    @relation("AbsenceDecidedBy")
+  offeredShifts   ShiftOffer[] @relation("OfferOfferedBy")
+  claimedShifts   ShiftOffer[] @relation("OfferClaimedBy")
+  decidedOffers   ShiftOffer[] @relation("OfferDecidedBy")
+
   @@index([active, lastName])
 }
 
@@ -46,6 +52,9 @@ model Shift {
 
   createdById String?
   createdBy   Employee? @relation("ShiftCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// Ponudba za oddajo te izmene, če je bila oddana.
+  offer ShiftOffer?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -75,4 +84,57 @@ model TimeEntry {
 
   @@index([employeeId, clockIn])
   @@index([clockIn])
+}
+
+/// Napovedana odsotnost (dopust, bolniška, drugo), ki jo potrdi vodja.
+model Absence {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation("AbsenceEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  /// "dopust" | "bolniska" | "drugo" — glej src/lib/requests.ts
+  type       String
+  /// Oba dneva sta vključena; hranimo ju ob polnoči.
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+  /// "pending" | "approved" | "rejected"
+  status     String   @default("pending")
+
+  decidedById String?
+  decidedBy   Employee? @relation("AbsenceDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt   DateTime?
+  decisionNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, startDate])
+  @@index([status, startDate])
+}
+
+/// Oddaja izmene: zaposleni jo ponudi, sodelavec jo prevzame, vodja potrdi.
+model ShiftOffer {
+  id      String @id @default(cuid())
+  shiftId String @unique
+  shift   Shift  @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  offeredById String
+  offeredBy   Employee @relation("OfferOfferedBy", fields: [offeredById], references: [id], onDelete: Cascade)
+
+  claimedById String?
+  claimedBy   Employee? @relation("OfferClaimedBy", fields: [claimedById], references: [id], onDelete: SetNull)
+  claimedAt   DateTime?
+
+  /// "open" | "claimed" | "approved" | "rejected" | "cancelled"
+  status String  @default("open")
+  note   String?
+
+  decidedById String?
+  decidedBy   Employee? @relation("OfferDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }

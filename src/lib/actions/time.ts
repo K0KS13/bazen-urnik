@@ -7,7 +7,7 @@ import { requireScheduleManager, requireUser } from "@/lib/session";
 export type ActionState = { error?: string; ok?: string };
 
 /** Prijava na izmeno. Če je vnos brez odjave že odprt, ne naredi ničesar. */
-export async function clockInAction(_formData: FormData): Promise<ActionState> {
+export async function clockInAction(): Promise<ActionState> {
   const user = await requireUser();
 
   const open = await prisma.timeEntry.findFirst({

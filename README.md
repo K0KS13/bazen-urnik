@@ -1,34 +1,78 @@
 # Bazen Bar & BBQ — urnik in evidenca ur
 
 Spletna aplikacija za vpisovanje delovnega časa in urejanje urnika izmen.
-Nadomešča Google Sheets: zaposleni se s PIN-om prijavi na izmeno, vodje izmen
-urejajo urnik in popravljajo napake, vodstvo ob koncu meseca izvozi ure za
-obračun.
+Nadomešča Google Sheets in dogovarjanje po WhatsAppu: zaposleni se s PIN-om
+prijavi na izmeno, sam odda izmeno, ki je ne more opraviti, in vloži dopust;
+vodje izmen urejajo urnik in potrjujejo prošnje; vodstvo ob koncu meseca
+izvozi ure za obračun.
 
 Deluje v brskalniku — na telefonu zaposlenega in na skupni tablici za šankom.
 Nameščanje iz trgovine z aplikacijami ni potrebno.
 
 ## Kaj zna
 
+**Evidenca ur**
+
 - **Prijava s PIN-om** — izbereš svoje ime in vtipkaš 4-mestno kodo. Brez
   e-pošte in gesel. Po petih zaporednih napačnih poskusih se prijava za
   10 minut zaklene.
 - **Ura** — en gumb za prijavo na izmeno in odjavo z nje, z odbitkom odmora.
-- **Urnik** — teden po dnevih. Zaposleni vidi svoje izmene, vodja vidi in ureja
-  vse. Izmene čez polnoč (20:00–02:00) so podprte.
 - **Moje ure** — pregled vnosov po mesecih. Vodja lahko izbere osebo, popravi
   pozabljeno odjavo ali izbriše napačen vnos; popravek se zabeleži skupaj s
   tem, kdo ga je naredil.
 - **Izvoz** — mesečni seštevek po osebah in prenos CSV (podpičje + UTF-8 BOM,
   torej se v slovenskem Excelu odpre pravilno).
 
+**Urnik**
+
+- Teden po dnevih; današnji dan je poudarjen. Zaposleni vidi razpored celotne
+  ekipe, ureja pa ga le vodja. Izmene čez polnoč (20:00–02:00) so podprte.
+- **Kopiraj urnik prejšnjega tedna** — en klik prepiše ves teden. Preskoči
+  tiste z odobreno odsotnostjo in izmene, ki že obstajajo, zato dvojni klik
+  urnika ne podvoji.
+- Vpis izmene je zavrnjen, če se prekriva z že vpisano ali če ima oseba tisti
+  dan odobreno odsotnost.
+
+**Menjave izmen**
+
+- Zaposleni svojo prihodnjo izmeno ponudi sodelavcem (»Ne morem — oddaj
+  izmeno«).
+- Sodelavec jo prevzame; sistem prepreči prevzem, če v tem času že dela ali je
+  odsoten.
+- Vodja potrdi in izmena se prepiše na novega nosilca. Vse v aplikaciji,
+  namesto dogovarjanja v skupinskem klepetu.
+
+**Odsotnosti**
+
+- Vloga za dopust, bolniško ali drugo, z razponom datumov in razlogom.
+- Vodja odobri ali zavrne, z neobvezno opombo. Ob odobritvi opozori, če ima ta
+  oseba v tem obdobju že vpisane izmene.
+- Odobrene odsotnosti so vidne v urniku.
+
+**Za vodje**
+
+- **Za urediti** na začetni strani zbere vse, kar čaka: pozabljene odjave
+  (odprt vnos, starejši od 14 ur), vloge za odsotnost in menjave za potrditev.
+- **Danes v lokalu** pokaže, kdo je trenutno na izmeni in kakšen je razpored.
+- Vodja izmene ne more odobriti svoje lastne vloge ali menjave, v kateri je
+  udeležen — to potrdi vodstvo.
+
 ## Vloge
 
 | Vloga | Sme |
 | --- | --- |
-| Zaposlen/a | prijava/odjava na uro, svoj urnik, svoje ure, sprememba svojega PIN-a |
-| Vodja izmene | vse zgoraj + urejanje urnika za vse, popravki ur, izvoz |
-| Vodstvo | vse zgoraj + dodajanje/urejanje zaposlenih, vloge, urne postavke, ponastavitev PIN-a |
+| Zaposlen/a | prijava/odjava na uro, svoj urnik, svoje ure, oddaja in prevzem izmen, vloge za odsotnost, sprememba svojega PIN-a |
+| Vodja izmene | vse zgoraj + urejanje urnika za vse, popravki ur, potrjevanje odsotnosti in menjav, izvoz |
+| Vodstvo | vse zgoraj + dodajanje/urejanje zaposlenih, vloge, urne postavke, ponastavitev PIN-a, odločanje o vlogah vodij |
+
+## Namestitev na telefon
+
+Aplikacija je PWA — na domači zaslon se doda brez trgovine z aplikacijami.
+
+- **Android (Chrome):** meni ⋮ → *Dodaj na začetni zaslon*
+- **iPhone (Safari):** gumb za deljenje → *Dodaj na začetni zaslon*
+
+Odpre se čez cel zaslon, brez naslovne vrstice brskalnika.
 
 ## Zagon na svojem računalniku
 
@@ -38,8 +82,7 @@ Potrebuješ Node.js 20 ali novejši.
 npm install
 ```
 
-Ustvari `.env` po vzoru `.env.example` (ali kopiraj obstoječega) in vanj vpiši
-svoj `AUTH_SECRET`:
+Ustvari `.env` po vzoru `.env.example` in vanj vpiši svoj `AUTH_SECRET`:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
@@ -64,15 +107,24 @@ zaseda drug Docker vsebnik, zato 3100.)
 Prvi PIN izpiše `npm run db:seed` — po prvi prijavi ga zamenjaj na začetni
 strani pod »Spremeni svoj PIN«, nato v zavihku **Ekipa** dodaj sodelavce.
 
+### Preizkus na telefonu
+
+Telefon mora biti v isti wifi mreži; odpri naslov, ki ga `npm run dev` izpiše
+pod **Network** (npr. `http://192.168.3.7:3100`). Naslovi IPv4 tega računalnika
+se samodejno dodajo v `allowedDevOrigins` — brez tega Next.js v razvoju blokira
+svoje datoteke in stran se naloži brez JavaScripta (vidiš vsebino, klik pa ne
+naredi ničesar).
+
 ### Uporabne komande
 
 | Komanda | Kaj naredi |
 | --- | --- |
 | `npm run dev` | razvojni strežnik na portu 3100 |
-| `npm run build` | produkcijska gradnja |
+| `npm run build` | produkcijska gradnja in preverjanje tipov |
 | `npm run db:studio` | brskanje po bazi v brskalniku |
 | `npm run db:seed` | prvi račun vodstva (če je baza prazna) |
 | `npx prisma migrate dev --name opis` | nova migracija po spremembi sheme |
+| `npx prisma generate` | osveži odjemalec po spremembi sheme |
 
 ## Kako je narejeno
 
@@ -87,16 +139,34 @@ strani pod »Spremeni svoj PIN«, nato v zavihku **Ekipa** dodaj sodelavce.
 src/
   app/
     prijava/         prijavni zaslon s PIN tipkovnico
-    (app)/           zaščiteni del: ura, urnik, ure, izvoz, ekipa
+    (app)/           zaščiteni del aplikacije
+      page.tsx       ura, »za urediti«, danes v lokalu
+      urnik/         tedenski urnik, kopiranje tedna, oddaja izmen
+      menjave/       ponujene izmene, prevzemi, potrditve
+      odsotnosti/    vloge za dopust in bolniško
+      ure/           mesečni pregled ur in popravki
+      izvoz/         seštevki in CSV
+      zaposleni/     ekipa (samo vodstvo)
     api/izvoz/       CSV za obračun
+    manifest.ts      podatki za namestitev na telefon
+    icon.tsx         ikona aplikacije
   lib/
     actions/         strežniške akcije (pisanje v bazo)
     session.ts       seja in preverjanje pravic
+    approvals.ts     kdo sme odločati o kateri vlogi
     time.ts          računanje in izpis ur
 prisma/
   schema.prisma      podatkovni model
   seed.ts            prvi račun vodstva
 ```
+
+### Dogovori, ki jih je dobro poznati
+
+- Izmena čez polnoč šteje k dnevu, ko se je **začela** — tudi v mesečnem
+  seštevku.
+- Odobrena odsotnost ne izbriše že vpisanih izmen; vodja dobi opozorilo in jih
+  prerazporedi sam.
+- Izmene, ki še tečejo (brez odjave), niso vštete v izvoz.
 
 ## Objava na splet
 

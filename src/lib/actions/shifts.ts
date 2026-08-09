@@ -1,9 +1,28 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { plural } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { requireScheduleManager } from "@/lib/session";
+import { addDays, parseLocalDate, startOfWeek } from "@/lib/time";
 import type { ActionState } from "@/lib/actions/time";
+
+/** Ali ima zaposleni na dan te izmene odobreno odsotnost. */
+async function isAbsent(employeeId: string, day: Date): Promise<boolean> {
+  const dayStart = new Date(day);
+  dayStart.setHours(0, 0, 0, 0);
+
+  const absence = await prisma.absence.findFirst({
+    where: {
+      employeeId,
+      status: "approved",
+      startDate: { lte: dayStart },
+      endDate: { gte: dayStart },
+    },
+    select: { id: true },
+  });
+  return absence !== null;
+}
 
 export async function createShiftAction(formData: FormData): Promise<ActionState> {
   const manager = await requireScheduleManager();
@@ -35,6 +54,10 @@ export async function createShiftAction(formData: FormData): Promise<ActionState
     return { error: "Ta oseba ima v tem času že vpisano izmeno." };
   }
 
+  if (await isAbsent(employeeId, start)) {
+    return { error: "Ta oseba ima tega dne odobreno odsotnost." };
+  }
+
   await prisma.shift.create({
     data: {
       employeeId,
@@ -49,6 +72,78 @@ export async function createShiftAction(formData: FormData): Promise<ActionState
   revalidatePath("/urnik");
   revalidatePath("/");
   return { ok: "Izmena dodana." };
+}
+
+/**
+ * Prepiše izmene prejšnjega tedna na izbrani teden. Preskoči neaktivne
+ * zaposlene, tiste z odobreno odsotnostjo in izmene, ki v ciljnem tednu že
+ * obstajajo — večkratni klik torej ne podvoji urnika.
+ */
+export async function copyPreviousWeekAction(
+  formData: FormData,
+): Promise<ActionState> {
+  const manager = await requireScheduleManager();
+
+  const targetWeek = parseLocalDate(String(formData.get("weekStart") ?? ""));
+  if (!targetWeek) return { error: "Neveljaven teden." };
+
+  const target = startOfWeek(targetWeek);
+  const source = addDays(target, -7);
+
+  const sourceShifts = await prisma.shift.findMany({
+    where: {
+      start: { gte: source, lt: target },
+      employee: { active: true },
+    },
+    orderBy: { start: "asc" },
+  });
+
+  if (sourceShifts.length === 0) {
+    return { error: "Prejšnji teden nima vpisanih izmen." };
+  }
+
+  let copied = 0;
+  let skipped = 0;
+
+  for (const shift of sourceShifts) {
+    const start = addDays(shift.start, 7);
+    const end = addDays(shift.end, 7);
+
+    const clash = await prisma.shift.findFirst({
+      where: { employeeId: shift.employeeId, start: { lt: end }, end: { gt: start } },
+      select: { id: true },
+    });
+    if (clash || (await isAbsent(shift.employeeId, start))) {
+      skipped += 1;
+      continue;
+    }
+
+    await prisma.shift.create({
+      data: {
+        employeeId: shift.employeeId,
+        start,
+        end,
+        position: shift.position,
+        note: shift.note,
+        createdById: manager.id,
+      },
+    });
+    copied += 1;
+  }
+
+  revalidatePath("/urnik");
+  revalidatePath("/");
+
+  const shiftWord = (count: number) =>
+    plural(count, ["izmena", "izmeni", "izmene", "izmen"]);
+
+  return {
+    ok:
+      skipped > 0
+        ? `Prepisano: ${shiftWord(copied)}. Preskočeno: ${shiftWord(skipped)} ` +
+          "(odsotnost ali že vpisana izmena)."
+        : `Prepisano: ${shiftWord(copied)}.`,
+  };
 }
 
 export async function deleteShiftAction(formData: FormData): Promise<ActionState> {

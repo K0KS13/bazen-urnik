@@ -85,6 +85,18 @@ export function toLocalInputValue(date: Date): string {
   );
 }
 
+/** "2026-08-09" -> lokalna polnoč tistega dne, ali null, če je zapis neveljaven. */
+export function parseLocalDate(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Število dni med datumoma, oba vključena. */
+export function daysBetween(from: Date, to: Date): number {
+  return Math.round((to.getTime() - from.getTime()) / 86400000) + 1;
+}
+
 export function toLocalDateValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;

@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Bazen Bar & BBQ — urnik in ure",
   description: "Urnik izmen in evidenca delovnega časa za Bazen Bar & BBQ.",
+  // Ko je aplikacija dodana na domači zaslon iPhona, se odpre brez brskalnika.
+  appleWebApp: {
+    capable: true,
+    title: "Bazen",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {

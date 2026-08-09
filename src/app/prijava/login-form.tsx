@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { loginAction, type LoginState } from "@/lib/actions/auth";
 
 type EmployeeOption = { id: string; firstName: string; lastName: string };
@@ -14,17 +14,24 @@ export function LoginForm({ employees }: { employees: EmployeeOption[] }) {
     loginAction,
     {},
   );
-  const formRef = useRef<HTMLFormElement>(null);
 
-  // Ko so vnesene vse štiri števke, oddamo obrazec sami — brez gumba "potrdi".
-  useEffect(() => {
-    if (pin.length === 4 && !pending) formRef.current?.requestSubmit();
-  }, [pin, pending]);
+  /**
+   * Ob četrti števki prijavo oddamo sami in polje takoj spraznimo — tako po
+   * zavrnjenem PIN-u ni treba nič brisati in lahko takoj poskusi znova.
+   */
+  function press(digit: string): void {
+    if (pending || !selected) return;
 
-  // Po zavrnjenem PIN-u polje spraznimo, da lahko takoj poskusi znova.
-  useEffect(() => {
-    if (state.error) setPin("");
-  }, [state]);
+    const next = (pin + digit).slice(0, 4);
+    setPin(next);
+    if (next.length < 4) return;
+
+    const data = new FormData();
+    data.set("employeeId", selected.id);
+    data.set("pin", next);
+    startTransition(() => formAction(data));
+    setPin("");
+  }
 
   if (!selected) {
     return (
@@ -50,10 +57,7 @@ export function LoginForm({ employees }: { employees: EmployeeOption[] }) {
   }
 
   return (
-    <form ref={formRef} action={formAction} className="card flex flex-col gap-4">
-      <input type="hidden" name="employeeId" value={selected.id} />
-      <input type="hidden" name="pin" value={pin} />
-
+    <div className="card flex flex-col gap-4">
       <div className="text-center">
         <p className="text-lg font-semibold">
           {selected.firstName} {selected.lastName}
@@ -86,7 +90,7 @@ export function LoginForm({ employees }: { employees: EmployeeOption[] }) {
             key={key}
             type="button"
             disabled={pending}
-            onClick={() => setPin((current) => (current + key).slice(0, 4))}
+            onClick={() => press(key)}
             className="btn-secondary py-5 text-2xl"
           >
             {key}
@@ -105,7 +109,7 @@ export function LoginForm({ employees }: { employees: EmployeeOption[] }) {
         <button
           type="button"
           disabled={pending}
-          onClick={() => setPin((current) => (current + "0").slice(0, 4))}
+          onClick={() => press("0")}
           className="btn-secondary py-5 text-2xl"
         >
           0
@@ -124,6 +128,6 @@ export function LoginForm({ employees }: { employees: EmployeeOption[] }) {
       {pending ? (
         <p className="text-center text-sm text-muted">Prijavljam …</p>
       ) : null}
-    </form>
+    </div>
   );
 }
