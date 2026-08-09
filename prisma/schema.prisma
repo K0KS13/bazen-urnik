@@ -1,6 +1,5 @@
 // Bazen Bar & BBQ — urnik in evidenca delovnega časa
-// Shema je namenoma brez enumov in brez podatkovnih tipov, specifičnih za SQLite,
-// da je prehod na PostgreSQL (Supabase / Neon) ob objavi samo menjava `provider`.
+// Shema je brez enumov, da ostane prenosljiva med bazami.
 
 generator client {
   provider = "prisma-client"
@@ -8,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 /// Zaposleni. Prijava poteka s 4-mestnim PIN-om, ki je shranjen zgoščen (bcrypt).

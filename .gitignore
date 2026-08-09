@@ -46,6 +46,9 @@ next-env.d.ts
 /prisma/*.db
 /prisma/*.db-journal
 
+# enkratne skripte za selitev podatkov
+/_*.ts
+
 # dokumentacija za pomočnike, ki jo znova ustvari `npx prisma init`
 /.agents/
 /.windsurf/
