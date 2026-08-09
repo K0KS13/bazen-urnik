@@ -23,6 +23,13 @@ model Employee {
   /// Želeno število ur na teden; upošteva ga samodejno sestavljanje urnika.
   weeklyHoursTarget Float?
   active     Boolean  @default(true)
+
+  /// Neuspeli poskusi prijave. Hranimo jih v bazi, ker se strežnik na
+  /// gostitelju pogosto zažene na novo in bi se števci v pomnilniku
+  /// ponastavili — zaklep pri 4-mestnem PIN-u je edina zaščita pred ugibanjem.
+  failedLoginCount Int       @default(0)
+  failedLoginSince DateTime?
+
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

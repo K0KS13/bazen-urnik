@@ -13,11 +13,13 @@ export function Collapsible({
   summary,
   defaultOpen = false,
   className = "card",
+  summaryClassName = "cursor-pointer font-semibold",
   children,
 }: {
   summary: string;
   defaultOpen?: boolean;
   className?: string;
+  summaryClassName?: string;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -28,7 +30,7 @@ export function Collapsible({
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary className="cursor-pointer font-semibold">{summary}</summary>
+      <summary className={summaryClassName}>{summary}</summary>
       {children}
     </details>
   );

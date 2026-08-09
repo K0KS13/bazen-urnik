@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/action-form";
+import { Collapsible } from "@/components/collapsible";
 import { PartOfDayTimes } from "@/components/part-of-day-times";
 import { WeekdayPicker } from "@/components/weekday-picker";
 import {
@@ -15,6 +16,7 @@ import {
   saveShiftTemplateAction,
   updateLateSettingsAction,
   updateShiftHoursAction,
+  updateShiftTemplateAction,
 } from "@/lib/actions/settings";
 import { WEEKDAY_LABELS, WEEKDAYS } from "@/lib/availability";
 import { formatEuro, plural } from "@/lib/format";
@@ -417,6 +419,77 @@ export default async function SettingsPage() {
                             ✕
                           </button>
                         </ActionForm>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <ul className="mt-1 flex flex-col">
+                    {forDay.map((template) => (
+                      <li key={`uredi-${template.id}`}>
+                        <Collapsible
+                          summary={`uredi ${template.position.name} ${template.startTime}`}
+                          className=""
+                          summaryClassName="cursor-pointer text-xs text-muted"
+                        >
+                          <ActionForm
+                            resetKey={`${template.partOfDay}:${template.startTime}:${template.endTime}:${template.peopleNeeded}:${template.minLevel}:${template.leadLevel}`}
+                            action={updateShiftTemplateAction}
+                            className="mt-2 mb-3 flex flex-col gap-3"
+                          >
+                            <input type="hidden" name="id" value={template.id} />
+
+                            <PartOfDayTimes
+                              defaults={{
+                                ...partDefaults,
+                                [template.partOfDay as PartOfDay]: {
+                                  start: template.startTime,
+                                  end: template.endTime,
+                                },
+                              }}
+                              initialPart={template.partOfDay as PartOfDay}
+                            />
+
+                            <div className="grid grid-cols-3 gap-3">
+                              <div>
+                                <label className="label">Ljudi</label>
+                                <input
+                                  name="peopleNeeded"
+                                  type="number"
+                                  min={1}
+                                  max={20}
+                                  className="field"
+                                  defaultValue={template.peopleNeeded}
+                                />
+                              </div>
+                              <div>
+                                <label className="label">Najniž. ocena</label>
+                                <input
+                                  name="minLevel"
+                                  type="number"
+                                  min={0}
+                                  max={5}
+                                  className="field"
+                                  defaultValue={template.minLevel}
+                                />
+                              </div>
+                              <div>
+                                <label className="label">Vsaj eden z oceno</label>
+                                <input
+                                  name="leadLevel"
+                                  type="number"
+                                  min={1}
+                                  max={5}
+                                  className="field"
+                                  defaultValue={template.leadLevel ?? ""}
+                                />
+                              </div>
+                            </div>
+
+                            <button type="submit" className="btn-secondary">
+                              Shrani predlogo
+                            </button>
+                          </ActionForm>
+                        </Collapsible>
                       </li>
                     ))}
                   </ul>

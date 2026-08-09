@@ -25,6 +25,7 @@ import { requireUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import {
   addDays,
+  formatMinutes,
   formatTime,
   isSameDay,
   parseLocalDate,
@@ -73,7 +74,9 @@ export default async function SchedulePage({
       where: { start: { gte: weekStart, lt: weekEnd } },
       orderBy: { start: "asc" },
       include: {
-        employee: { select: { firstName: true, lastName: true } },
+        employee: {
+          select: { firstName: true, lastName: true, weeklyHoursTarget: true },
+        },
         offer: { select: { id: true, status: true } },
       },
     }),
@@ -115,6 +118,56 @@ export default async function SchedulePage({
     PARTS_OF_DAY.map((part) => [part, defaultTimes(part, settings)]),
   ) as Record<PartOfDay, { start: string; end: string }>;
 
+  const shiftMinutes = (shift: { start: Date; end: Date }) =>
+    Math.round((shift.end.getTime() - shift.start.getTime()) / 60000);
+
+  /**
+   * Kdo je isti dan vpisan več kot enkrat. Dvojna izmena je pogosto pomota
+   * (dopoldne in popoldne), zato jo v urniku posebej označimo.
+   */
+  const doubleBooked = new Map<string, Map<string, number>>();
+  for (const day of days) {
+    const dayEnd = addDays(day, 1);
+    const perEmployee = new Map<string, number>();
+
+    for (const shift of shifts) {
+      if (shift.start < day || shift.start >= dayEnd) continue;
+      perEmployee.set(
+        shift.employeeId,
+        (perEmployee.get(shift.employeeId) ?? 0) + shiftMinutes(shift),
+      );
+    }
+
+    const counts = new Map<string, number>();
+    for (const shift of shifts) {
+      if (shift.start < day || shift.start >= dayEnd) continue;
+      counts.set(shift.employeeId, (counts.get(shift.employeeId) ?? 0) + 1);
+    }
+
+    const flagged = new Map<string, number>();
+    for (const [employeeId, count] of counts) {
+      if (count > 1) flagged.set(employeeId, perEmployee.get(employeeId) ?? 0);
+    }
+    doubleBooked.set(toLocalDateValue(day), flagged);
+  }
+
+  /** Načrtovane ure po osebi za prikazani teden. */
+  const weeklyMinutes = new Map<
+    string,
+    { name: string; minutes: number; target: number | null }
+  >();
+  for (const shift of shifts) {
+    const current = weeklyMinutes.get(shift.employeeId);
+    weeklyMinutes.set(shift.employeeId, {
+      name: `${shift.employee.firstName} ${shift.employee.lastName}`.trim(),
+      minutes: (current?.minutes ?? 0) + shiftMinutes(shift),
+      target: shift.employee.weeklyHoursTarget,
+    });
+  }
+  const weeklyRows = [...weeklyMinutes.entries()].sort(
+    (a, b) => b[1].minutes - a[1].minutes,
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <nav className="flex items-center justify-between gap-2">
@@ -147,6 +200,7 @@ export default async function SchedulePage({
           );
           const isToday = isSameDay(day, now);
           const closed = closedRuleFor(day, closedDays);
+          const dvojni = doubleBooked.get(toLocalDateValue(day)) ?? new Map();
 
           return (
             <section
@@ -213,6 +267,14 @@ export default async function SchedulePage({
                               <span className="min-w-0 flex-1 truncate text-sm font-medium">
                                 {shift.employee.firstName} {shift.employee.lastName}
                               </span>
+                              {dvojni.has(shift.employeeId) ? (
+                                <span
+                                  title="Ta oseba je ta dan vpisana v dveh izmenah"
+                                  className="shrink-0 rounded-full bg-danger/20 px-2 py-0.5 text-xs font-semibold text-danger ring-1 ring-danger/40"
+                                >
+                                  cel dan {formatMinutes(dvojni.get(shift.employeeId)!)}
+                                </span>
+                              ) : null}
                               {shift.position ? (
                                 <span className="shrink-0 rounded-full bg-background/60 px-2 py-0.5 text-xs text-muted">
                                   {shift.position}
@@ -303,6 +365,48 @@ export default async function SchedulePage({
           );
         })}
       </div>
+
+      {weeklyRows.length > 0 ? (
+        <section className="card">
+          <h2 className="mb-1 font-semibold">Ure v tem tednu</h2>
+          <p className="mb-3 text-xs text-muted">
+            Načrtovane ure iz urnika, ne dejansko odsluženi čas.
+          </p>
+
+          <ul className="flex flex-col gap-1.5">
+            {weeklyRows.map(([employeeId, row]) => {
+              const cilj = row.target === null ? null : row.target * 60;
+              const cezCilj = cilj !== null && row.minutes > cilj;
+
+              return (
+                <li
+                  key={employeeId}
+                  className={`flex items-baseline justify-between gap-3 rounded-xl px-3 py-2 text-sm ${
+                    employeeId === user.id
+                      ? "bg-accent/15 ring-1 ring-accent/40"
+                      : "bg-surface-2"
+                  }`}
+                >
+                  <span className="min-w-0 truncate">{row.name}</span>
+                  <span
+                    className={`shrink-0 font-mono tabular-nums ${
+                      cezCilj ? "text-warning" : ""
+                    }`}
+                  >
+                    {formatMinutes(row.minutes)}
+                    {cilj !== null ? (
+                      <span className="font-sans text-xs text-muted">
+                        {" "}
+                        / {row.target} h
+                      </span>
+                    ) : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {canManage ? (
         <>

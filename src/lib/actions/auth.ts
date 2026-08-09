@@ -8,32 +8,28 @@ import { createSession, destroySession } from "@/lib/session";
 export type LoginState = { error?: string };
 
 /**
- * Preprosta zaščita pred ugibanjem PIN-a. Hrani se v pomnilniku procesa, kar
- * zadošča za en strežnik; ob ponovnem zagonu se števci ponastavijo.
+ * Zaščita pred ugibanjem PIN-a.
+ *
+ * Števci so v bazi, ne v pomnilniku procesa: na gostitelju se strežnik pogosto
+ * zažene na novo in teče v več hkratnih instancah, zato bi se pomnilniški
+ * števci ponastavili in zaklep ne bi držal. Pri 4-mestnem PIN-u je to edina
+ * ovira med naključnim obiskovalcem in tujim računom.
  */
 const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 10 * 60 * 1000;
-const attempts = new Map<string, { count: number; firstAt: number }>();
+const LOCKOUT_MINUTES = 10;
 
-function registerFailure(employeeId: string): void {
-  const now = Date.now();
-  const current = attempts.get(employeeId);
-  if (!current || now - current.firstAt > LOCKOUT_MS) {
-    attempts.set(employeeId, { count: 1, firstAt: now });
-    return;
-  }
-  current.count += 1;
-}
+type LockState = {
+  failedLoginCount: number;
+  failedLoginSince: Date | null;
+};
 
-function minutesUntilUnlock(employeeId: string): number {
-  const current = attempts.get(employeeId);
-  if (!current || current.count < MAX_ATTEMPTS) return 0;
-  const remaining = LOCKOUT_MS - (Date.now() - current.firstAt);
-  if (remaining <= 0) {
-    attempts.delete(employeeId);
-    return 0;
-  }
-  return Math.ceil(remaining / 60000);
+/** Koliko minut je še do sprostitve; 0 pomeni, da račun ni zaklenjen. */
+function minutesUntilUnlock(state: LockState, now: Date): number {
+  if (state.failedLoginCount < MAX_ATTEMPTS || !state.failedLoginSince) return 0;
+
+  const elapsed = now.getTime() - state.failedLoginSince.getTime();
+  const remaining = LOCKOUT_MINUTES * 60000 - elapsed;
+  return remaining > 0 ? Math.ceil(remaining / 60000) : 0;
 }
 
 export async function loginAction(
@@ -46,26 +42,51 @@ export async function loginAction(
   if (!employeeId) return { error: "Najprej izberi svoje ime." };
   if (!/^\d{4}$/.test(pin)) return { error: "PIN mora imeti 4 števke." };
 
-  const locked = minutesUntilUnlock(employeeId);
-  if (locked > 0) {
-    return { error: `Preveč poskusov. Poskusi znova čez ${locked} min.` };
-  }
-
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
-    select: { id: true, pinHash: true, active: true },
+    select: {
+      id: true,
+      pinHash: true,
+      active: true,
+      failedLoginCount: true,
+      failedLoginSince: true,
+    },
   });
 
   if (!employee || !employee.active) {
     return { error: "Ta oseba ni več aktivna. Obrni se na vodstvo." };
   }
 
+  const now = new Date();
+  const locked = minutesUntilUnlock(employee, now);
+  if (locked > 0) {
+    return { error: `Preveč poskusov. Poskusi znova čez ${locked} min.` };
+  }
+
+  // Okno je poteklo, a števec je še vpisan — štetje začnemo znova.
+  const windowExpired =
+    employee.failedLoginSince !== null &&
+    now.getTime() - employee.failedLoginSince.getTime() >
+      LOCKOUT_MINUTES * 60000;
+
   if (!(await bcrypt.compare(pin, employee.pinHash))) {
-    registerFailure(employee.id);
+    await prisma.employee.update({
+      where: { id: employee.id },
+      data:
+        windowExpired || employee.failedLoginCount === 0
+          ? { failedLoginCount: 1, failedLoginSince: now }
+          : { failedLoginCount: { increment: 1 } },
+    });
     return { error: "Napačen PIN." };
   }
 
-  attempts.delete(employee.id);
+  if (employee.failedLoginCount > 0) {
+    await prisma.employee.update({
+      where: { id: employee.id },
+      data: { failedLoginCount: 0, failedLoginSince: null },
+    });
+  }
+
   await createSession(employee.id);
   redirect("/");
 }

@@ -343,6 +343,11 @@ Vse spodaj je **narejeno in preizkušeno**. Ne izdeluj znova.
 - Izmene čez polnoč (konec ≤ začetek) se končajo naslednji dan.
 - **Kopiraj urnik prejšnjega tedna** — preskoči zaprte dneve, odsotnosti in
   obstoječe izmene; ponoven klik ne podvoji.
+- **Dvojna izmena** — kdor je isti dan vpisan več kot enkrat, dobi na obeh
+  izmenah rdečo oznako »cel dan« s skupnim trajanjem tistega dne.
+- **Ure v tem tednu** — seštevek načrtovanih ur po osebi za prikazani teden, s
+  primerjavo s tedenskim ciljem, če je nastavljen. Gre za načrtovane ure iz
+  urnika, ne za dejansko odslužen čas.
 - **Samodejno sestavljanje iz predlog** — glej razdelek 11.
 
 ### Menjave izmen
@@ -470,9 +475,12 @@ Preverjeno na produkciji po objavi: ista izmena se zdaj izpiše kot
 > takoj odkrijejo. Izjema je `live-clock.tsx`, ki teče v brskalniku in namenoma
 > uporablja čas naprave.
 
-### 12.2 Zaklep po neuspelih prijavah ne deluje zanesljivo
-Števci so v pomnilniku procesa. Na Vercelu (več instanc, hladni zagoni) se
-ponastavijo. Za pravo omejevanje je treba stanje preseliti v bazo ali Redis.
+### 12.2 Zaklep po neuspelih prijavah — **ODPRAVLJENO 9. 8. 2026**
+Števci so bili v pomnilniku procesa in so se na gostitelju ponastavljali.
+Zdaj sta `failedLoginCount` in `failedLoginSince` stolpca na `Employee`, zato
+zaklep preživi ponovni zagon in velja za vse instance. Preverjeno: po petih
+napačnih PIN-ih je zavrnjen tudi pravilni, in po ponovnem zagonu strežnika
+zaklep še vedno drži.
 
 ### 12.3 Samodejni urnik še nima podatkov
 Ocene po delovnih mestih ima vpisane **en zaposleni od dvajsetih**. Brez ocen
@@ -494,8 +502,8 @@ v pokvarjenem stanju celo commitana in objavljena. Vse je obnovljeno.
 Po vsakem `git push` preveri, da so migracije še berljive.
 
 ### 12.6 Manjše
-- Predlog izmen in izmen **ni mogoče urejati** — samo izbrisati in vpisati
-  znova.
+- **Izmen v urniku** ni mogoče urejati — samo izbrisati in vpisati znova.
+  Predloge izmen je od 9. 8. mogoče urejati.
 - `prisma/seed.ts` ustvari račun z imenom »Jaka (vodstvo)«, ki v bazi ne
   obstaja več (preimenovan). Skripta deluje le, če je baza prazna.
 - Izvoz ne vključuje izmen, ki še tečejo (brez odjave) — namerno, a vodja mora
@@ -614,7 +622,6 @@ Ti ročni primeri so odslej zajeti v testih, razen tistih, ki zahtevajo bazo
 
 | Dolg | Predlog |
 |---|---|
-| Zaklep prijave v pomnilniku | prestavi v bazo |
 | Testi ne pokrivajo akcij in pravic | dodaj teste nad akcijami s testno bazo |
 | Nizi namesto enumov | ob naslednji večji migraciji razmisli o enumih |
 | Ni urejanja predlog in izmen | dodaj urejanje namesto brisanja |
@@ -647,26 +654,22 @@ Geslo baze je bilo enkrat izpostavljeno. Zamenjaj ga v Supabase ter posodobi
 `.env` in Vercel. Prepričaj se, da ima produkcija drug `AUTH_SECRET` kot
 lokalno okolje.
 
-### 5. Zaklep prijave prestavi iz pomnilnika v bazo
-Zdaj se števci neuspelih poskusov na Vercelu ponastavijo ob vsakem hladnem
-zagonu, zato omejitev petih poskusov v praksi ne drži. Pri 4-mestnem PIN-u je
-to edina zaščita pred ugibanjem.
-
-### 6. Obvestila
+### 5. Obvestila
 Brez njih zaposleni ne bodo sami odpirali aplikacije. Aplikacija je PWA, zato
 so možna spletna potisna obvestila; alternativa je e-pošta prek zunanje
 storitve. Sprožilci: objavljen urnik, ponujena izmena, odločitev o vlogi.
 
-### 7. Osnutek urnika pred objavo
+### 6. Osnutek urnika pred objavo
 Zdaj je vsaka vpisana izmena takoj vidna vsem. Vodje sestavljajo teden
 postopoma — smiselno je stanje `osnutek` → `objavljen`.
 
-### 8. Varnostna kopija in hramba
+### 7. Varnostna kopija in hramba
 Preveri, kaj Supabase na brezplačnem nivoju dejansko hrani in kako dolgo.
 Evidenco delovnega časa je treba po ZEPDSV hraniti trajno.
 
-### 9. Ločeno razvojno okolje
+### 8. Ločeno razvojno okolje
 Drugi Supabase projekt, da razvoj ne piše v produkcijsko bazo.
 
-### 10. Urejanje predlog in izmen
-Trenutno le brisanje in ponoven vpis.
+### 9. Urejanje izmen v urniku
+Predloge je od 9. 8. mogoče urejati, posamezne izmene v urniku pa še vedno le
+izbrisati in vpisati znova.

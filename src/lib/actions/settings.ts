@@ -460,6 +460,50 @@ export async function deleteWeekdayTemplatesAction(
   };
 }
 
+/** Popravek obstoječe predloge; dan in delovno mesto ostaneta ista. */
+export async function updateShiftTemplateAction(
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const partOfDay = String(formData.get("partOfDay") ?? "");
+  const startTime = String(formData.get("startTime") ?? "");
+  const endTime = String(formData.get("endTime") ?? "");
+  const peopleNeeded = Number(formData.get("peopleNeeded") ?? 1);
+  const minLevel = Number(formData.get("minLevel") ?? 1);
+  const leadLevelRaw = String(formData.get("leadLevel") ?? "");
+
+  if (!id) return { error: "Manjka predloga." };
+  if (!isPartOfDay(partOfDay)) return { error: "Izberi del dneva." };
+  if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) {
+    return { error: "Vpiši veljavni uri (npr. 16:00)." };
+  }
+  if (!Number.isInteger(peopleNeeded) || peopleNeeded < 1 || peopleNeeded > 20) {
+    return { error: "Število ljudi mora biti med 1 in 20." };
+  }
+  if (!Number.isInteger(minLevel) || minLevel < 0 || minLevel > 5) {
+    return { error: "Najnižja ocena mora biti med 0 in 5." };
+  }
+
+  const leadLevel = leadLevelRaw ? Number(leadLevelRaw) : null;
+  if (
+    leadLevel !== null &&
+    (!Number.isInteger(leadLevel) || leadLevel < 1 || leadLevel > 5)
+  ) {
+    return { error: "Ocena izkušenega mora biti med 1 in 5." };
+  }
+
+  await prisma.shiftTemplate.update({
+    where: { id },
+    data: { partOfDay, startTime, endTime, peopleNeeded, minLevel, leadLevel },
+  });
+
+  revalidatePath("/nastavitve");
+  revalidatePath("/urnik");
+  return { ok: "Predloga popravljena." };
+}
+
 export async function deleteShiftTemplateAction(
   formData: FormData,
 ): Promise<ActionState> {
